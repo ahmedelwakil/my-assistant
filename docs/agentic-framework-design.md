@@ -20,7 +20,7 @@
 
 ## 3. Project Scope
 
-The repos this pipeline operates on are entirely configuration-driven — see `config.json`'s `repos` array (each entry: `name`, `projectPath`, `owner`, `hasSentry`). All configured repos are treated **identically by default** — no per-repo exceptions unless deliberately added, since the no-auto-merge policy plus mandatory human PR review is the actual safety backstop regardless of a given repo's stakes.
+The repos this pipeline operates on are entirely configuration-driven — see `config.json`'s `repos` array (each entry: `name`, `projectPath`, `owner`, `hasSentry`, and an optional `sentryProject` for when the Sentry project name differs from the repo name). All configured repos are treated **identically by default** — no per-repo exceptions unless deliberately added, since the no-auto-merge policy plus mandatory human PR review is the actual safety backstop regardless of a given repo's stakes.
 
 ## 4. Workflow Taxonomy (5 types)
 

@@ -43,7 +43,7 @@ const config = await agent(
           type: 'array',
           items: {
             type: 'object',
-            properties: { name: { type: 'string' }, projectPath: { type: 'string' }, owner: { type: 'string' }, hasSentry: { type: 'boolean' } },
+            properties: { name: { type: 'string' }, projectPath: { type: 'string' }, owner: { type: 'string' }, hasSentry: { type: 'boolean' }, sentryProject: { type: 'string' } },
             required: ['name', 'projectPath', 'owner'],
           },
         },
@@ -117,11 +117,12 @@ if (activeRepos.length === 0) {
 phase('Detect')
 const detected = await parallel(
   activeRepos.map((repo) => async () => {
+    const sentryProjectName = repo.sentryProject || repo.name
     const result = await agent(
-      `Repo: ${repo.name}
+      `Repo: ${repo.name} (Sentry project: "${sentryProjectName}" - may differ from the repo name, don't assume they match)
 Read the "sentry" -> "${repo.name}" entry from ${STATE_PATH} for the last-checked cursor.
 
-Query Sentry for anything new/changed since that cursor for this repo's project: newly created issues, issues that regressed (previously resolved, now firing again), issues that crossed a severity/volume threshold worth attention. ${guardedWrite(`update the cursor in ${STATE_PATH} regardless of findings.`)}
+Query Sentry for anything new/changed since that cursor for the "${sentryProjectName}" project: newly created issues, issues that regressed (previously resolved, now firing again), issues that crossed a severity/volume threshold worth attention. If no Sentry project matching "${sentryProjectName}" can be found in the org, that is NOT an event - do not fabricate one from the search failure itself (e.g. never return a projects-list URL or similar non-issue as an "event"). Just return an empty events array in that case; note the mismatch in your own report text, not as a fake event. ${guardedWrite(`update the cursor in ${STATE_PATH} regardless of findings.`)}
 
 Return new events found (empty array if none), each with the Sentry issue URL, type, and enough context (error message, stack trace summary, affected count) to classify without re-fetching. Do NOT try to format the repo identifier yourself - it's added by the caller.`,
       {

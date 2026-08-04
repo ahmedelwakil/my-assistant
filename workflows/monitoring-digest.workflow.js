@@ -57,8 +57,8 @@ const KNOWLEDGE_INDEX_PATH = `${config.dataDir}\\index.md`
 
 phase('Gather')
 const perRepo = await parallel(
-  REPOS.map((repo) => async () =>
-    agent(
+  REPOS.map((repo) => async () => {
+    const result = await agent(
       `Repo: ${repo.name}, at ${repo.projectPath}
 
 Gather a status snapshot for the last 24 hours:
@@ -88,7 +88,12 @@ Return a structured summary, not prose.`,
         },
       }
     )
-  )
+    // Never trust an agent-echoed repo identifier for the completeness check below - it may
+    // format it differently than config.json's bare name (e.g. "Miswag/trendy-web" vs.
+    // "trendy-web"), which would make every repo look "missing" despite real data being
+    // gathered. Always attach identity from the script's own known repo list instead.
+    return result ? { ...result, repo: repo.name } : null
+  })
 )
 
 const gathered = perRepo.filter(Boolean)
