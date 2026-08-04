@@ -3,6 +3,7 @@ export const meta = {
   description: 'Poll Slack for new DMs/mentions relevant to in-scope work, classify, dedup, dispatch',
   whenToUse: 'Fires on its own CronCreate schedule (Slack is time-sensitive - short cadence)',
   phases: [
+    { title: 'Load Config' },
     { title: 'Kill-Switch Check' },
     { title: 'Detect' },
     { title: 'Classify & Dispatch' },
@@ -11,12 +12,53 @@ export const meta = {
 
 const A = typeof args === 'string' ? JSON.parse(args) : args
 
-const STATE_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\routine-state.json'
-const LOCKS_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\repo-locks.json'
-const KILL_SWITCH_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\kill-switch.json'
-const PROJECTS_DIR = 'C:\\Users\\PC\\claude workspace\\my-assistant\\projects'
-const WRITE_LOCK_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\.write.lock'
-const WORKFLOWS_DIR = 'C:\\Users\\PC\\Workspace\\my-assistant\\workflows'
+// The data directory itself is user-chosen, so it can't be the fixed bootstrap path - the
+// pointer file is. It's the one truly fixed location in the whole system. Workflow scripts
+// can't resolve `~` themselves, but the agent doing the read CAN, via its own Bash/Read
+// tools, so both paths stay portable across users/platforms instead of hardcoded literals.
+const CONFIG_LOCATION_PATH = '~/.claude/my-assistant/config-location'
+
+phase('Load Config')
+const configLocation = await agent(
+  `Read the file at ${CONFIG_LOCATION_PATH} (resolve "~" to the current user's home directory yourself, e.g. via an environment variable or shell expansion - do not assume a literal path). It's a small JSON file with a single "configPath" field. Return that field's value verbatim.`,
+  {
+    phase: 'Load Config',
+    model: 'haiku',
+    schema: { type: 'object', properties: { configPath: { type: 'string' } }, required: ['configPath'] },
+  }
+)
+
+const config = await agent(
+  `Read the config file at ${configLocation.configPath}. Return its "dataDir", "workflowsDir", "notify", and "repos" fields verbatim.`,
+  {
+    phase: 'Load Config',
+    model: 'haiku',
+    schema: {
+      type: 'object',
+      properties: {
+        dataDir: { type: 'string' },
+        workflowsDir: { type: 'string' },
+        notify: { type: 'object', properties: { platform: { type: 'string' }, userName: { type: 'string' } }, required: ['platform', 'userName'] },
+        repos: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { name: { type: 'string' }, projectPath: { type: 'string' }, owner: { type: 'string' }, hasSentry: { type: 'boolean' } },
+            required: ['name', 'projectPath', 'owner'],
+          },
+        },
+      },
+      required: ['dataDir', 'workflowsDir', 'notify', 'repos'],
+    },
+  }
+)
+
+const STATE_PATH = `${config.dataDir}\\state\\routine-state.json`
+const LOCKS_PATH = `${config.dataDir}\\state\\repo-locks.json`
+const KILL_SWITCH_PATH = `${config.dataDir}\\state\\kill-switch.json`
+const PROJECTS_DIR = `${config.dataDir}\\projects`
+const WRITE_LOCK_PATH = `${config.dataDir}\\state\\.write.lock`
+const WORKFLOWS_DIR = config.workflowsDir
 
 // workflow('bug-fix', ...) only resolves PRE-REGISTERED workflow names (a separate
 // registry from scriptPath files) - these custom workflows aren't registered there, so
@@ -54,11 +96,7 @@ function invalidateLocks(repo) {
   delete lockCache[repo]
 }
 
-const REPOS = [
-  { name: 'trendy-web', projectPath: 'C:\\Users\\PC\\Workspace\\trendy-web' },
-  { name: 'trendy-sdk', projectPath: 'C:\\Users\\PC\\Workspace\\trendy-sdk' },
-  { name: 'miswag-pay', projectPath: 'C:\\Users\\PC\\Workspace\\miswag-pay' },
-]
+const REPOS = config.repos
 
 phase('Kill-Switch Check')
 const killSwitch = await agent(
@@ -83,7 +121,7 @@ phase('Detect')
 const detection = await agent(
   `Read the "slack" entries from ${STATE_PATH} for the last-checked cursor per repo (use the earliest one across all in-scope repos as the effective cursor, to avoid missing anything).
 
-Check Ahmed's unread DMs and any mentions since that cursor. ${guardedWrite(`update all "slack" cursors in ${STATE_PATH} to reflect this check.`)}
+Check ${config.notify.userName}'s unread DMs and any mentions since that cursor. ${guardedWrite(`update all "slack" cursors in ${STATE_PATH} to reflect this check.`)}
 
 Return each new message with enough context to classify: sender, channel/DM, full text, and your best guess at which of these repos it's about (if any): ${activeRepoNames.join(', ')} - or null if it's unrelated to work entirely (in which case it'll be classified as no-op).`,
   {
@@ -131,9 +169,9 @@ Likely repo: ${event.likelyRepo || 'none identified'}
 ${repoMeta ? `Project notes: ${PROJECTS_DIR}\\${repoMeta.name}.md` : ''}
 Recently completed/in-flight work on this repo (dedup, if a repo applies): ${JSON.stringify(locks.recent_runs)}
 
-Most Slack triggers are "investigate-and-respond" (answer a question, give a status update) or "no-op" (not addressed to the assistant, purely social). Only classify as a code-change type (bug-fix/feature/refactor) if Ahmed is genuinely asking for one AND a repo was identified - a code-change workflow cannot run without a repo.
+Most Slack triggers are "investigate-and-respond" (answer a question, give a status update) or "no-op" (not addressed to the assistant, purely social). Only classify as a code-change type (bug-fix/feature/refactor) if ${config.notify.userName} is genuinely asking for one AND a repo was identified - a code-change workflow cannot run without a repo.
 
-Only classify as warranting action at all if the message is actually DIRECTED at the assistant: a DM, or an explicit @-mention with a real ask. If Ahmed was only cc'd/included as a bystander in a channel thread, or is visibly thinking out loud / talking to someone else without addressing the assistant, that's no-op regardless of topic - being present in a channel isn't the same as being asked to do something.
+Only classify as warranting action at all if the message is actually DIRECTED at the assistant: a DM, or an explicit @-mention with a real ask. If ${config.notify.userName} was only cc'd/included as a bystander in a channel thread, or is visibly thinking out loud / talking to someone else without addressing the assistant, that's no-op regardless of topic - being present in a channel isn't the same as being asked to do something.
 
 Classify: workflow_type, warrants_action, ticket_status (existing/needs-creation/none-needed), ticket_id if existing, dedup_match against recent_runs (or null), reasoning.`,
     {
@@ -231,17 +269,17 @@ Return the new ticket's ID and gitBranchName field.`,
   // A direct Slack mention/DM is inherently time-sensitive - push immediately, matching Section 14's tiering.
   if (result.status === 'drafted-response') {
     await agent(
-      `Send a Slack DM to Ahmed now: a drafted reply to a Slack message is ready for review (not sent automatically). Draft: ${result.draftText}. Reply to this DM with approval or edits before it goes out.`,
+      `Send a ${config.notify.platform} DM to ${config.notify.userName} now: a drafted reply to a Slack message is ready for review (not sent automatically). Draft: ${result.draftText}. Reply to this DM with approval or edits before it goes out.`,
       { phase: 'Classify & Dispatch', schema: { type: 'object', properties: { sent: { type: 'boolean' } }, required: ['sent'] } }
     )
   } else if (result.status === 'plan-ready-pending-approval') {
     await agent(
-      `Send a Slack DM to Ahmed now: a Slack-triggered ${classification.workflow_type} run on ${repoMeta.name} (ticket ${ticketInfo.ticketId}) has a plan ready and is paused awaiting your approval before Execute - see the "Pending Execution Approval" section of index.md. Resume it via the resume-approved-plan workflow with { ticketId: "${ticketInfo.ticketId}", repo: "${repoMeta.name}" }.`,
+      `Send a ${config.notify.platform} DM to ${config.notify.userName} now: a Slack-triggered ${classification.workflow_type} run on ${repoMeta.name} (ticket ${ticketInfo.ticketId}) has a plan ready and is paused awaiting approval before Execute - see the "Pending Execution Approval" section of index.md. Resume it via the resume-approved-plan workflow with { ticketId: "${ticketInfo.ticketId}", repo: "${repoMeta.name}" }.`,
       { phase: 'Classify & Dispatch', schema: { type: 'object', properties: { sent: { type: 'boolean' } }, required: ['sent'] } }
     )
   } else if (result.status === 'needs-human-decision' || result.status === 'blocked' || result.status === 'verification-failed') {
     await agent(
-      `Send a Slack DM to Ahmed now: an automatic ${classification.workflow_type} triggered from Slack needs attention - status "${result.status}", reason: ${result.reason || 'see run details'}.`,
+      `Send a ${config.notify.platform} DM to ${config.notify.userName} now: an automatic ${classification.workflow_type} triggered from Slack needs attention - status "${result.status}", reason: ${result.reason || 'see run details'}.`,
       { phase: 'Classify & Dispatch', schema: { type: 'object', properties: { sent: { type: 'boolean' } }, required: ['sent'] } }
     )
   }

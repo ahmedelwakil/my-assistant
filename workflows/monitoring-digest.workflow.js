@@ -3,18 +3,57 @@ export const meta = {
   description: 'Read-only daily rollup across GitHub/Linear/Sentry/Slack for all in-scope repos',
   whenToUse: 'Fires on its own daily schedule, not event-triggered',
   phases: [
+    { title: 'Load Config' },
     { title: 'Gather' },
     { title: 'Synthesize' },
     { title: 'Publish' },
   ],
 }
 
-const A = typeof args === 'string' ? JSON.parse(args) : args
-
-// args: { repos: [{ name, projectPath }], knowledgeIndexPath }
 // No worktree, no code changes, no adversarial review - this is pure reporting.
 
-const REPOS = A.repos
+// The data directory itself is user-chosen, so it can't be the fixed bootstrap path - the
+// pointer file is. It's the one truly fixed location in the whole system. Workflow scripts
+// can't resolve `~` themselves, but the agent doing the read CAN, via its own Bash/Read
+// tools, so both paths stay portable across users/platforms instead of hardcoded literals.
+const CONFIG_LOCATION_PATH = '~/.claude/my-assistant/config-location'
+
+phase('Load Config')
+const configLocation = await agent(
+  `Read the file at ${CONFIG_LOCATION_PATH} (resolve "~" to the current user's home directory yourself, e.g. via an environment variable or shell expansion - do not assume a literal path). It's a small JSON file with a single "configPath" field. Return that field's value verbatim.`,
+  {
+    phase: 'Load Config',
+    model: 'haiku',
+    schema: { type: 'object', properties: { configPath: { type: 'string' } }, required: ['configPath'] },
+  }
+)
+
+const config = await agent(
+  `Read the config file at ${configLocation.configPath}. Return its "dataDir", "notify", and "repos" fields verbatim.`,
+  {
+    phase: 'Load Config',
+    model: 'haiku',
+    schema: {
+      type: 'object',
+      properties: {
+        dataDir: { type: 'string' },
+        notify: { type: 'object', properties: { platform: { type: 'string' }, userName: { type: 'string' } }, required: ['platform', 'userName'] },
+        repos: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { name: { type: 'string' }, projectPath: { type: 'string' }, owner: { type: 'string' }, hasSentry: { type: 'boolean' } },
+            required: ['name', 'projectPath'],
+          },
+        },
+      },
+      required: ['dataDir', 'notify', 'repos'],
+    },
+  }
+)
+
+const REPOS = config.repos
+const KNOWLEDGE_INDEX_PATH = `${config.dataDir}\\index.md`
 
 phase('Gather')
 const perRepo = await parallel(
@@ -24,8 +63,8 @@ const perRepo = await parallel(
 
 Gather a status snapshot for the last 24 hours:
 - GitHub: open PRs still awaiting review (flag any open >48h), any new CI failures, any new bot/human review comments not yet replied to.
-- Linear: tickets assigned to Ahmed that changed status or got new comments.
-- Sentry: any new issues (skip if this repo has no Sentry project configured - e.g. trendy-sdk is a library with nothing to report errors).
+- Linear: tickets assigned to ${config.notify.userName} that changed status or got new comments.
+- Sentry: any new issues (skip if this repo has no Sentry project configured).
 - Slack: any unanswered DMs/mentions relevant to this repo (skip if not applicable).
 
 If a platform genuinely doesn't apply to this repo (e.g. no Sentry project), say so explicitly rather than silently omitting it - that distinction matters for the completeness check later.
@@ -87,8 +126,8 @@ ${synthesis.digestText}
 ${missingRepos.length > 0 ? `NOTE: this run could not gather data for: ${missingRepos.join(', ')} - say so explicitly at the top of the digest, do not silently present this as complete.` : ''}
 ${anyQueryErrors ? `NOTE: some queries errored - list them plainly rather than omitting them.` : ''}
 
-1. Send this digest as a Slack DM to Ahmed.
-2. Update the "Recent Monitoring Digest rollups" section of ${A.knowledgeIndexPath} - replace its placeholder/previous content with this digest and today's date, keeping only the single most recent rollup (this is a thin index file, not a log).
+1. Send this digest as a ${config.notify.platform} DM to ${config.notify.userName}.
+2. Update the "Recent Monitoring Digest rollups" section of ${KNOWLEDGE_INDEX_PATH} - replace its placeholder/previous content with this digest and today's date, keeping only the single most recent rollup (this is a thin index file, not a log).
 
 Return the Slack message link.`,
   {

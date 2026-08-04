@@ -1,8 +1,9 @@
 export const meta = {
   name: 'resume-approved-plan',
   description: 'Resume a paused Feature/Refactor plan (from state/pending-approvals.json) into Execute, with proper repo-lock acquire/release around the mutating phase',
-  whenToUse: 'Invoked manually by Ahmed after reviewing a "Pending Execution Approval" entry in index.md and deciding to proceed - args: { ticketId, repo }',
+  whenToUse: 'Invoked manually by the user after reviewing a "Pending Execution Approval" entry in index.md and deciding to proceed - args: { ticketId, repo }',
   phases: [
+    { title: 'Load Config' },
     { title: 'Load' },
     { title: 'Lock Check' },
     { title: 'Execute (resumed)' },
@@ -14,11 +15,44 @@ const A = typeof args === 'string' ? JSON.parse(args) : args
 
 // args: { ticketId, repo }
 
-const LOCKS_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\repo-locks.json'
-const PENDING_APPROVALS_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\pending-approvals.json'
-const KILL_SWITCH_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\kill-switch.json'
-const WRITE_LOCK_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\.write.lock'
-const WORKFLOWS_DIR = 'C:\\Users\\PC\\Workspace\\my-assistant\\workflows'
+// The data directory itself is user-chosen, so it can't be the fixed bootstrap path - the
+// pointer file is. It's the one truly fixed location in the whole system. Workflow scripts
+// can't resolve `~` themselves, but the agent doing the read CAN, via its own Bash/Read
+// tools, so both paths stay portable across users/platforms instead of hardcoded literals.
+const CONFIG_LOCATION_PATH = '~/.claude/my-assistant/config-location'
+
+phase('Load Config')
+const configLocation = await agent(
+  `Read the file at ${CONFIG_LOCATION_PATH} (resolve "~" to the current user's home directory yourself, e.g. via an environment variable or shell expansion - do not assume a literal path). It's a small JSON file with a single "configPath" field. Return that field's value verbatim.`,
+  {
+    phase: 'Load Config',
+    model: 'haiku',
+    schema: { type: 'object', properties: { configPath: { type: 'string' } }, required: ['configPath'] },
+  }
+)
+
+const config = await agent(
+  `Read the config file at ${configLocation.configPath}. Return its "dataDir", "workflowsDir", and "notify" fields verbatim.`,
+  {
+    phase: 'Load Config',
+    model: 'haiku',
+    schema: {
+      type: 'object',
+      properties: {
+        dataDir: { type: 'string' },
+        workflowsDir: { type: 'string' },
+        notify: { type: 'object', properties: { platform: { type: 'string' }, userName: { type: 'string' } }, required: ['platform', 'userName'] },
+      },
+      required: ['dataDir', 'workflowsDir', 'notify'],
+    },
+  }
+)
+
+const LOCKS_PATH = `${config.dataDir}\\state\\repo-locks.json`
+const PENDING_APPROVALS_PATH = `${config.dataDir}\\state\\pending-approvals.json`
+const KILL_SWITCH_PATH = `${config.dataDir}\\state\\kill-switch.json`
+const WRITE_LOCK_PATH = `${config.dataDir}\\state\\.write.lock`
+const WORKFLOWS_DIR = config.workflowsDir
 
 // workflow('bug-fix', ...) only resolves PRE-REGISTERED workflow names (a separate
 // registry from scriptPath files) - these custom workflows aren't registered there, so
@@ -145,7 +179,7 @@ await agent(
 
 if (result.status === 'needs-human-decision' || result.status === 'blocked' || result.status === 'verification-failed') {
   await agent(
-    `Send a Slack DM to Ahmed now: the resumed ${entry.workflowType} run on ${A.repo} (ticket ${A.ticketId}) needs attention - status "${result.status}", reason: ${result.reason || 'see run details'}. This was a manually-approved resume, so it's worth flagging promptly rather than waiting for a digest.`,
+    `Send a ${config.notify.platform} DM to ${config.notify.userName} now: the resumed ${entry.workflowType} run on ${A.repo} (ticket ${A.ticketId}) needs attention - status "${result.status}", reason: ${result.reason || 'see run details'}. This was a manually-approved resume, so it's worth flagging promptly rather than waiting for a digest.`,
     { phase: 'Release & Record', schema: { type: 'object', properties: { sent: { type: 'boolean' } }, required: ['sent'] } }
   )
 }

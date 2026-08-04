@@ -25,10 +25,23 @@ Every `/my-assistant` session loads, and every technical-task workflow reads:
 
 1. **`CLAUDE.md`** (each project's own root, if present) — architecture, commands, codebase conventions. Auto-loaded by Claude Code for interactive sessions; explicitly read by the automated workflow pipeline below, since that behavior doesn't extend to spawned subagents.
 2. **Memory files** (`~/.claude/projects/*/memory/*.md`) — structured notes Claude Code maintains per project directory: settled decisions, resolved investigations, standing feedback, accumulated organically over time.
-3. **Base knowledge** (`~/claude workspace/my-assistant/base-knowledge.md` by default — configurable) — a synthesized, cumulative record of everything Claude has helped you with across all past sessions. Built by `/my-assistant-update`, grown by `/my-assistant-save`.
+3. **Base knowledge** (`<dataDir>/base-knowledge.md`) — a synthesized, cumulative record of everything Claude has helped you with across all past sessions. Built by `/my-assistant-update`, grown by `/my-assistant-save`.
 4. **Project structure** — a minimal scan of your project directories (file names only, no content reads).
 
 If you're also running the automated-workflow pipeline (below) against specific repos, two more files sit alongside these per repo: a thin cross-cutting index and a per-project knowledge file, kept current by the workflows themselves rather than only by manual saves.
+
+### Configuration — one question, ever
+
+None of the four skills has a hardcoded default path. A fixed pointer file at `~/.claude/my-assistant/config-location` tells every skill where your real config lives. The very first time you run *any* of the four skills on a machine, that pointer doesn't exist yet — so it asks exactly one open-ended question ("where should your data directory live?"), then in one shot:
+
+- creates the full data directory structure there (`base-knowledge.md`, `index.md`, `projects/`, `state/`, `diffs/`)
+- resolves everything else it can (memory files dir, project scan dirs, session-transcripts dir) from documented conventions, without asking
+- writes it all into `<dataDir>/config.json`
+- writes the pointer at `~/.claude/my-assistant/config-location`
+
+Every run after that reads the pointer, reads `config.json`, and proceeds silently — no questions, regardless of whether your data directory is the conventional default or somewhere completely different. If you tell a skill to change a stored value mid-session, it updates `config.json` immediately rather than just noting it verbally.
+
+The installers (`install.ps1`/`install.sh`) only create the empty `~/.claude/my-assistant/` directory so it's there and writable — they never write the pointer file or `config.json` itself, since only a live skill invocation can actually ask that one bootstrap question.
 
 ### Technical task workflow
 
@@ -47,6 +60,8 @@ When `/my-assistant` detects a technical task, it offers `/my-assistant-task` �
 Bug Fix and Refactor skip the Spec step — their scope is bounded enough not to need it. Every phase invokes the real installed skill by name rather than reimplementing its logic.
 
 The same pipeline also runs unattended, triggered by GitHub/Linear/Sentry/Slack events against a configured set of repos — same review mechanism, same knowledge layers, same "always ends in a draft PR" policy. That part of the setup is more involved to configure than the base skills above; see the workflow scripts under `workflows/` if you want to adapt it.
+
+**Prerequisite**: these workflow scripts have no way to ask a question, so they can't bootstrap `~/.claude/my-assistant/config-location` themselves the way the interactive skills do — they only read it. Run at least one of the four interactive skills first (which is what actually creates the pointer and `config.json`) before wiring up any `CronCreate` schedule against these scripts, or every run will fail at its first "Load Config" step with nothing to read.
 
 ### Knowledge accumulation
 
@@ -83,21 +98,19 @@ Restart Claude Code after installing. Skills are available immediately as slash 
 ## First run
 
 1. Open Claude Code in any directory
-2. Run `/my-assistant-update` — point it to your Claude session transcript directory:
-   - **Windows:** `C:\Users\<username>\AppData\Local\Temp\claude`
-   - **macOS:** `~/Library/Caches/claude-code/projects`
-   - **Linux/WSL:** `/tmp/claude` or `~/.local/share/claude`
-3. Let it process your sessions and build `~/.claude/my-assistant/base-knowledge.md`
-4. Run `/my-assistant` to start your first session
+2. Run `/my-assistant-update` first — it'll ask the one bootstrap question (where your data directory should live), set up the whole data directory structure and `config.json` in one shot, then ask where your Claude session transcripts live (the one field it needs that isn't resolved automatically) before importing them
+3. It builds `<dataDir>/base-knowledge.md` from your past sessions
+4. Run `/my-assistant` to start your first real session — by now nothing gets asked again
 
 ---
 
-## Data directory (knowledge + runtime state)
+## Data directory (knowledge + runtime state + config)
 
-Knowledge and runtime state live in a directory you configure (default `~/claude workspace/my-assistant/`) — separate from this repo, which holds the skills/commands/workflow scripts themselves as the single source of truth:
+Knowledge, runtime state, and this deployment's own configuration all live in a directory you choose once, on first run (there's no baked-in default suggested to you — see "Configuration" above) — separate from this repo, which holds the skills/commands/workflow scripts themselves as the single source of truth. A tiny pointer file at `~/.claude/my-assistant/config-location` (created by that same first run) is what lets every later session find it again, wherever it is:
 
 ```
-~/claude workspace/my-assistant/
+<wherever you chose>/
+├── config.json                — this deployment's settings (see below); created on first run, never by the installers
 ├── base-knowledge.md          — cumulative session history
 ├── index.md                   — thin cross-cutting index (shared guidelines, project pointers)
 ├── projects/
@@ -112,6 +125,26 @@ Knowledge and runtime state live in a directory you configure (default `~/claude
         ├── step-02.diff
         └── RESUME.md          — written on unrecoverable errors for safe resume
 ```
+
+### `config.json`
+
+```json
+{
+  "dataDir": "~/claude workspace/my-assistant",
+  "memoryDir": "~/.claude/projects",
+  "projectDirs": ["~/claude workspace", "~/Workspace"],
+  "sessionsDir": "~/.claude-sessions-or-platform-default",
+  "workflowsDir": "/path/to/this/repo/workflows",
+  "notify": { "platform": "slack", "userName": "your-name" },
+  "repos": [
+    { "name": "my-repo", "projectPath": "/path/to/my-repo", "owner": "my-org", "hasSentry": true }
+  ]
+}
+```
+
+- `dataDir`, `memoryDir`, `projectDirs` — set in one shot on the very first run of any skill (see "Configuration" above).
+- `sessionsDir` — the one field that first-run bootstrap doesn't resolve on its own; `/my-assistant-update` asks for it the first time it runs, since it's the only skill that actually needs it.
+- `workflowsDir`, `notify`, `repos` — only used by the optional automated-workflow pipeline (`workflows/dispatch/*.workflow.js`); the four interactive skills never read or write these. If you're setting up that pipeline, add them by hand — there's no interactive prompt for them today. This still requires `config-location` to already exist (see "Prerequisite" above) — those scripts read it the same way the interactive skills do, they just can't create it themselves.
 
 ---
 

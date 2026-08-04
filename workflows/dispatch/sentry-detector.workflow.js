@@ -3,6 +3,7 @@ export const meta = {
   description: 'Poll Sentry for new/regressed issues, classify, dedup, dispatch',
   whenToUse: 'Fires on its own CronCreate schedule (Sentry is time-sensitive - short cadence)',
   phases: [
+    { title: 'Load Config' },
     { title: 'Kill-Switch Check' },
     { title: 'Detect' },
     { title: 'Classify & Dispatch' },
@@ -11,12 +12,53 @@ export const meta = {
 
 const A = typeof args === 'string' ? JSON.parse(args) : args
 
-const STATE_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\routine-state.json'
-const LOCKS_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\repo-locks.json'
-const KILL_SWITCH_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\kill-switch.json'
-const PROJECTS_DIR = 'C:\\Users\\PC\\claude workspace\\my-assistant\\projects'
-const WRITE_LOCK_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\state\\.write.lock'
-const WORKFLOWS_DIR = 'C:\\Users\\PC\\Workspace\\my-assistant\\workflows'
+// The data directory itself is user-chosen, so it can't be the fixed bootstrap path - the
+// pointer file is. It's the one truly fixed location in the whole system. Workflow scripts
+// can't resolve `~` themselves, but the agent doing the read CAN, via its own Bash/Read
+// tools, so both paths stay portable across users/platforms instead of hardcoded literals.
+const CONFIG_LOCATION_PATH = '~/.claude/my-assistant/config-location'
+
+phase('Load Config')
+const configLocation = await agent(
+  `Read the file at ${CONFIG_LOCATION_PATH} (resolve "~" to the current user's home directory yourself, e.g. via an environment variable or shell expansion - do not assume a literal path). It's a small JSON file with a single "configPath" field. Return that field's value verbatim.`,
+  {
+    phase: 'Load Config',
+    model: 'haiku',
+    schema: { type: 'object', properties: { configPath: { type: 'string' } }, required: ['configPath'] },
+  }
+)
+
+const config = await agent(
+  `Read the config file at ${configLocation.configPath}. Return its "dataDir", "workflowsDir", "notify", and "repos" fields verbatim.`,
+  {
+    phase: 'Load Config',
+    model: 'haiku',
+    schema: {
+      type: 'object',
+      properties: {
+        dataDir: { type: 'string' },
+        workflowsDir: { type: 'string' },
+        notify: { type: 'object', properties: { platform: { type: 'string' }, userName: { type: 'string' } }, required: ['platform', 'userName'] },
+        repos: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { name: { type: 'string' }, projectPath: { type: 'string' }, owner: { type: 'string' }, hasSentry: { type: 'boolean' } },
+            required: ['name', 'projectPath', 'owner'],
+          },
+        },
+      },
+      required: ['dataDir', 'workflowsDir', 'notify', 'repos'],
+    },
+  }
+)
+
+const STATE_PATH = `${config.dataDir}\\state\\routine-state.json`
+const LOCKS_PATH = `${config.dataDir}\\state\\repo-locks.json`
+const KILL_SWITCH_PATH = `${config.dataDir}\\state\\kill-switch.json`
+const PROJECTS_DIR = `${config.dataDir}\\projects`
+const WRITE_LOCK_PATH = `${config.dataDir}\\state\\.write.lock`
+const WORKFLOWS_DIR = config.workflowsDir
 
 // workflow('bug-fix', ...) only resolves PRE-REGISTERED workflow names (a separate
 // registry from scriptPath files) - these custom workflows aren't registered there, so
@@ -26,11 +68,8 @@ function workflowScript(name) {
   return { scriptPath: `${WORKFLOWS_DIR}\\${name}.workflow.js` }
 }
 
-// Wraps a shared-state-file write instruction with a simple lock-file mutex, since
-// multiple detectors (GitHub/Linear/Sentry/Slack, each on its own cron schedule) could
-// otherwise race writing the SAME routine-state.json/repo-locks.json file at once. Not
-// truly atomic (this is an LLM following prose, not a real compare-and-swap) but
-// narrows the window meaningfully versus no coordination at all.
+// Same mutex convention used by the detectors and by feature/refactor.workflow.js -
+// kept duplicated here (not imported) since workflow scripts are self-contained.
 function guardedWrite(instruction) {
   return `Before doing the write below, guard against a concurrent writer: check if ${WRITE_LOCK_PATH} exists. If absent, create it now containing the current timestamp, then proceed immediately. If present, read its timestamp - if older than 60 seconds treat it as abandoned (a crashed run), overwrite it with the current timestamp, and proceed; otherwise wait ~5 seconds and re-check, up to 6 times, then proceed anyway rather than hanging indefinitely (note in your report if you had to do this). Then: ${instruction} Finally, delete ${WRITE_LOCK_PATH}.`
 }
@@ -54,11 +93,9 @@ function invalidateLocks(repo) {
   delete lockCache[repo]
 }
 
-// trendy-sdk excluded: it's a library, not a deployed service - nothing reports to Sentry.
-const REPOS = [
-  { name: 'trendy-web', projectPath: 'C:\\Users\\PC\\Workspace\\trendy-web' },
-  { name: 'miswag-pay', projectPath: 'C:\\Users\\PC\\Workspace\\miswag-pay' },
-]
+// Repos with hasSentry: false are excluded (e.g. a library with nothing deployed that could
+// report to Sentry) - data-driven via config rather than a hardcoded exclusion list.
+const REPOS = config.repos.filter((r) => r.hasSentry !== false)
 
 phase('Kill-Switch Check')
 const killSwitch = await agent(
@@ -129,7 +166,7 @@ Recently completed/in-flight work on this repo (dedup): ${JSON.stringify(locks.r
 
 Sentry issues are almost always "bug-fix" (a real error) or "investigate-and-respond" (worth a diagnostic comment/triage before committing to a fix, e.g. if root cause is unclear). Check whether a Linear ticket already exists for this issue; if not and this warrants a code change, ticket_status is "needs-creation".
 
-Exclude as no-op: issues already marked ignored, muted, or resolved-and-not-actually-regressed in Sentry itself (verify the CURRENT status in Sentry directly, don't just trust the event summary) - the detector cursor can occasionally surface something Ahmed already triaged there manually. Everything else that's a genuine new/regressed error warrants at least investigate-and-respond.
+Exclude as no-op: issues already marked ignored, muted, or resolved-and-not-actually-regressed in Sentry itself (verify the CURRENT status in Sentry directly, don't just trust the event summary) - the detector cursor can occasionally surface something already triaged there manually. Everything else that's a genuine new/regressed error warrants at least investigate-and-respond.
 
 Classify: workflow_type, warrants_action, ticket_status, ticket_id (if existing), dedup_match against recent_runs above (or null), reasoning.`,
     {
@@ -211,7 +248,7 @@ Return the new ticket's ID and gitBranchName field.`,
 
   // Sentry is always time-sensitive - push immediately regardless of outcome, not just on failure.
   await agent(
-    `Send a Slack DM to Ahmed now: a Sentry-triggered ${classification.workflow_type} on ${event.repo} (ticket ${ticketInfo.ticketId || 'n/a'}) finished with status "${result.status}"${result.prUrl ? `, draft PR: ${result.prUrl}` : ''}. Sentry events are always pushed immediately, not batched into the digest.`,
+    `Send a ${config.notify.platform} DM to ${config.notify.userName} now: a Sentry-triggered ${classification.workflow_type} on ${event.repo} (ticket ${ticketInfo.ticketId || 'n/a'}) finished with status "${result.status}"${result.prUrl ? `, draft PR: ${result.prUrl}` : ''}. Sentry events are always pushed immediately, not batched into the digest.`,
     { phase: 'Classify & Dispatch', schema: { type: 'object', properties: { sent: { type: 'boolean' } }, required: ['sent'] } }
   )
 }

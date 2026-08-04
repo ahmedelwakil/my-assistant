@@ -3,26 +3,25 @@
 Load your personal assistant context and enter assistant mode for the session.
 Powered by four knowledge layers: base knowledge, memory files, the agentic framework's project knowledge, and live project structure.
 
-## Step 1: Gather configuration
+## Step 1: Load configuration
 
-Ask the user the following questions (use AskUserQuestion if available, otherwise ask in plain text):
+Check for a pointer file at `~/.claude/my-assistant/config-location` (resolve `~` to the actual home directory — on Windows this is typically `C:\Users\<username>`).
 
-**Question 1 — Base knowledge file:**
-"Where is your base knowledge file?
-Default: ~/claude workspace/my-assistant/base-knowledge.md
-Press Enter to accept, or type a different path."
+- **If it exists**: read it for `configPath`, then read that file. Use its `dataDir`, `memoryDir`, and `projectDirs` fields directly — they should already be present. Never ask about anything already there.
+- **If it doesn't exist**: this is the very first time any my-assistant skill has run on this machine. Ask exactly one question (`AskUserQuestion` if available, otherwise plain text) — no suggested default, just an open question:
 
-**Question 2 — Memory files directory:**
-"Where are your Claude memory files?
-Default: ~/.claude/projects/
-Press Enter to accept, or type a different path."
+  "Where should your my-assistant data directory live?"
 
-**Question 3 — Project directories:**
-"Which project directories should I scan for structure? (comma-separated)
-Default: ~/claude workspace, ~/Workspace
-Press Enter to accept, or type different paths."
+  Once answered, in this order:
+  1. Create that directory (`dataDir`) if it doesn't exist yet, along with its full structure: `base-knowledge.md` (empty), `index.md` (a skeleton with empty sections), `projects/`, `state/` (with a starter `kill-switch.json` — `{"global_enabled": true, "repos": {}, "budgets": {"perRunTokens": 2000000, "dailyAggregateTokens": 20000000}}`), `diffs/`.
+  2. Resolve the rest automatically, without asking: `memoryDir` → `~/.claude/projects`; `projectDirs` → `[~/claude workspace, ~/Workspace]`.
+  3. Write `dataDir`, `memoryDir`, and `projectDirs` into `<dataDir>/config.json`.
+  4. Create `~/.claude/my-assistant/config-location` containing `{ "configPath": "<dataDir>/config.json" }`.
+  5. Tell the user plainly what was set up and where, and that any of it can be changed just by saying so.
 
-Resolve `~` to the actual home directory. On Windows this is typically `C:\Users\<username>`.
+`sessionsDir`, `workflowsDir`, `notify`, and `repos` are used by other skills / the optional automated-workflow pipeline, not by this one — leave them alone if absent.
+
+If the user explicitly asks to change a stored value during a session (a different path, an added project directory), update `config.json` immediately — don't just acknowledge it verbally and leave the file stale.
 
 ## Step 2: Load base knowledge
 
@@ -50,16 +49,16 @@ since they are more recent.
 
 ## Step 4: Load agentic framework project knowledge
 
-Read `C:\Users\PC\claude workspace\my-assistant\index.md` if it exists — it's a thin index
-pointing to per-project files for trendy-web, trendy-sdk, and miswag-pay (the repos the
-agentic framework's automatic routines operate on).
+Read `<dataDir>\index.md` if it exists — it's a thin index pointing to per-project files for
+whichever repos are listed in `config.json`'s `repos` field (the repos the agentic framework's
+automatic routines operate on, if that automated pipeline is configured at all).
 
 Don't load the individual `projects\*.md` files up front — that would duplicate most of
 Step 2's base-knowledge content for those same repos. Instead, note from the index which
 projects have dedicated files, and read the specific one **only** when the conversation
 actually turns to that project. This file is more current/curated than base knowledge for
-those three repos specifically (it's the same knowledge source the automatic routines
-themselves read and write), so prefer it over base knowledge if the two ever disagree.
+those repos specifically (it's the same knowledge source the automatic routines themselves
+read and write), so prefer it over base knowledge if the two ever disagree.
 
 Note: each of those repos also has its own `CLAUDE.md` at its root, loaded automatically by
 Claude Code the moment you work in it — that's architecture/commands, not duplicated in

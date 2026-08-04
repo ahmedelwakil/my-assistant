@@ -7,10 +7,16 @@ $skillsSource   = Join-Path $PSScriptRoot "skills"
 $commandsSource = Join-Path $PSScriptRoot "commands"
 $skillsDest     = Join-Path $HOME ".claude\skills"
 $commandsDest   = Join-Path $HOME ".claude\commands"
+$configDest     = Join-Path $HOME ".claude\my-assistant"
 
 $names = @("my-assistant", "my-assistant-task", "my-assistant-save", "my-assistant-update")
 
 New-Item -ItemType Directory -Force $commandsDest | Out-Null
+
+# Empty on purpose - no config-location pointer, no values. The first skill you actually
+# run asks one question and writes that pointer itself; this just makes sure the directory
+# it writes into already exists and is writable.
+New-Item -ItemType Directory -Force $configDest | Out-Null
 
 foreach ($name in $names) {
     $src  = Join-Path $skillsSource $name

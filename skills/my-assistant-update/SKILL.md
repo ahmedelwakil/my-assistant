@@ -3,22 +3,29 @@
 Update the base knowledge file for /my-assistant by synthesizing Claude session transcripts.
 This command is additive — it never deletes existing knowledge, even if source sessions are gone.
 
-## Step 1: Gather inputs
+## Step 1: Load configuration
 
-Ask the user the following two questions (use AskUserQuestion if available, otherwise ask in plain text):
+Check for a pointer file at `~/.claude/my-assistant/config-location` (resolve `~` to the actual home directory — on Windows this is typically `C:\Users\<username>`).
 
-**Question 1 — Sessions directory:**
-"Where are your Claude session transcripts (JSONL files)?
-Default: /mnt/c/Users/PC/AppData/Local/Temp/claude
-Press Enter to accept, or type a different path."
+- **If it exists**: read it for `configPath`, then read that file. Use its `dataDir` and `sessionsDir` fields directly — never ask about anything already there. If `sessionsDir` specifically is missing (this is the one field only this skill needs that the shared bootstrap doesn't set), ask just for that:
 
-**Question 2 — Base knowledge file:**
-"Where should the base knowledge file be saved?
-Default: ~/claude workspace/my-assistant/base-knowledge.md
-Press Enter to accept, or type a different path."
+  "Where are your Claude session transcripts (JSONL files)? (Windows is typically `C:\Users\<username>\AppData\Local\Temp\claude`, macOS `~/Library/Caches/claude-code/projects`, Linux/WSL `/tmp/claude` or `~/.local/share/claude`.)"
 
-Resolve `~` to the actual home directory. On Windows this is typically `C:\Users\<username>`.
-Ensure the output directory exists before writing (create it if needed).
+  Write the answer into `<dataDir>/config.json` under `sessionsDir`, merging into existing content.
+
+- **If it doesn't exist**: this is the very first time any my-assistant skill has run on this machine. Ask exactly one question (`AskUserQuestion` if available, otherwise plain text) — no suggested default, just an open question:
+
+  "Where should your my-assistant data directory live?"
+
+  Once answered, in this order:
+  1. Create that directory (`dataDir`) if it doesn't exist yet, along with its full structure: `base-knowledge.md` (empty), `index.md` (a skeleton with empty sections), `projects/`, `state/` (with a starter `kill-switch.json` — `{"global_enabled": true, "repos": {}, "budgets": {"perRunTokens": 2000000, "dailyAggregateTokens": 20000000}}`), `diffs/`.
+  2. Resolve the rest automatically, without asking: `memoryDir` → `~/.claude/projects`; `projectDirs` → `[~/claude workspace, ~/Workspace]`.
+  3. Ask the `sessionsDir` question above (this skill genuinely can't proceed without it).
+  4. Write `dataDir`, `memoryDir`, `projectDirs`, and `sessionsDir` into `<dataDir>/config.json`.
+  5. Create `~/.claude/my-assistant/config-location` containing `{ "configPath": "<dataDir>/config.json" }`.
+  6. Tell the user plainly what was set up and where, and that any of it can be changed just by saying so.
+
+If the user explicitly asks to change a stored value during a session, update `config.json` immediately — don't just acknowledge it verbally and leave the file stale.
 
 ## Step 2: Load existing base knowledge
 

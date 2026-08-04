@@ -11,10 +11,16 @@ SKILLS_SOURCE="$REPO_ROOT/skills"
 COMMANDS_SOURCE="$REPO_ROOT/commands"
 SKILLS_DEST="$HOME/.claude/skills"
 COMMANDS_DEST="$HOME/.claude/commands"
+CONFIG_DEST="$HOME/.claude/my-assistant"
 
 names=(my-assistant my-assistant-task my-assistant-save my-assistant-update)
 
 mkdir -p "$COMMANDS_DEST"
+
+# Empty on purpose - no config-location pointer, no values. The first skill you actually
+# run asks one question and writes that pointer itself; this just makes sure the directory
+# it writes into already exists and is writable.
+mkdir -p "$CONFIG_DEST"
 
 for name in "${names[@]}"; do
   dest="$SKILLS_DEST/$name"
