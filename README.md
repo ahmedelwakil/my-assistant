@@ -79,15 +79,15 @@ All saves are **append-only** — existing knowledge is never overwritten or del
 
 **Windows (PowerShell):**
 ```powershell
-git clone https://github.com/ahmedelwakil/my-claude-assistant
-cd my-claude-assistant
+git clone https://github.com/ahmedelwakil/my-assistant
+cd my-assistant
 .\install.ps1
 ```
 
 **macOS / Linux / WSL:**
 ```bash
-git clone https://github.com/ahmedelwakil/my-claude-assistant
-cd my-claude-assistant
+git clone https://github.com/ahmedelwakil/my-assistant
+cd my-assistant
 chmod +x install.sh && ./install.sh
 ```
 

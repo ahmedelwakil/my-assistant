@@ -1,0 +1,50 @@
+title: "[Setup]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying **my-assistant**! Fill in as much of this as you can — most setup questions come down to the `config.json` / `config-location` bootstrap (see the README's "Configuration" section), so the more detail here, the faster this gets sorted.
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Windows
+        - macOS
+        - Linux / WSL
+    validations:
+      required: true
+  - type: input
+    id: skill
+    attributes:
+      label: Which skill/command were you running?
+      placeholder: "/my-assistant, /my-assistant-save, /my-assistant-update, or /my-assistant-task"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened?
+      description: Paste the exact error or unexpected behavior, if any.
+    validations:
+      required: true
+  - type: textarea
+    id: config-location
+    attributes:
+      label: Does ~/.claude/my-assistant/config-location exist?
+      description: If yes, paste its contents. If no, say so — this is the first thing worth checking, since nothing works without it.
+    validations:
+      required: false
+  - type: textarea
+    id: config-json
+    attributes:
+      label: Contents of your config.json
+      description: Paste it here. Redact any real project paths/names you'd rather not post publicly.
+    validations:
+      required: false
