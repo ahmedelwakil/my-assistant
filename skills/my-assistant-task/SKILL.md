@@ -102,6 +102,11 @@ All subsequent phases operate inside this worktree.
 
 Invoke **`superpowers:writing-plans`** against the spec (Feature) or the ticket/investigation (Bug Fix/Refactor). Follow its format exactly: zero-context-assumed, 2–5 minute tasks, exact file paths, real interface signatures, actual code — never "similar to Task N" or other placeholders.
 
+For EACH task, also classify its verification strategy — default to `local-tdd` and only deviate when there's a concrete, nameable reason, never for convenience:
+- `local-tdd` — the normal case: a failing test can be written and actually run right here, right now, to prove the change.
+- `ci-only` — a real test can be written test-first, but red/green confirmation isn't possible in this environment (e.g. a missing extension, a service only reachable from CI/staging) — name the specific gap.
+- `manual` — no automated test meaningfully covers this (e.g. exact visual output, third-party behavior outside your control) — describe exactly how a human should verify it.
+
 No approval gate here in the interactive path — the user is already live, watching the plan as it's produced, so a formal pause is redundant (they can redirect in conversation before Execute starts). The gate that matters is Phase 7's review. (Automated/unattended Feature and Refactor runs, triggered by routines rather than `/my-assistant-task`, do pause here for asynchronous approval instead — see `feature.workflow.js`/`refactor.workflow.js`.)
 
 Post the root cause/investigation and the plan as a comment on the Linear ticket (use the Linear MCP tool) — a genuinely useful summary, not just "see plan." Do this regardless of workflow type.
@@ -112,7 +117,7 @@ Post the root cause/investigation and the plan as a comment on the Linear ticket
 
 Invoke **`superpowers:subagent-driven-development`** to execute the plan: fresh Implementer subagent per task (isolated, zero session history) → Task Reviewer (spec + quality) after each → bounded fix loop (max 5 rounds, escalating to a more capable model on repeated failure) → scoped re-review. Do not pause between tasks to check in — that skill's whole point is continuous execution through completion, stopping only on genuine blockers.
 
-Every task's implementation follows **`superpowers:test-driven-development`** strictly: no production code without a failing test first. If a test is written to pass before it's confirmed failing, delete the code and restart — no exceptions, no "test after."
+Every task's implementation follows **`superpowers:test-driven-development`** strictly for tasks tagged `local-tdd` at Plan time: no production code without a failing test first — if a test is written to pass before it's confirmed failing, delete the code and restart, no exceptions there. For `ci-only` tasks, still write the test first for design clarity, but note plainly that local red/green confirmation isn't possible for the stated reason rather than forcing it to pass or skipping the test entirely. For `manual` tasks, implement it and report the exact steps a human should take to verify it — there's no test to write.
 
 **Bug Fix specifically**: root-cause investigation follows **`superpowers:systematic-debugging`** — no fix without first reproducing the issue, reviewing recent changes, and forming a specific hypothesis. If 3 or more fix attempts fail, stop and question whether the plan itself is wrong, rather than trying a 4th variation.
 
