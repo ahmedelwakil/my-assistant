@@ -1,7 +1,7 @@
 # /my-assistant
 
 Load your personal assistant context and enter assistant mode for the session.
-Powered by three knowledge layers: base knowledge, memory files, and live project structure.
+Powered by four knowledge layers: base knowledge, memory files, the agentic framework's project knowledge, and live project structure.
 
 ## Step 1: Gather configuration
 
@@ -9,7 +9,7 @@ Ask the user the following questions (use AskUserQuestion if available, otherwis
 
 **Question 1 — Base knowledge file:**
 "Where is your base knowledge file?
-Default: ~/.claude/my-assistant/base-knowledge.md
+Default: ~/claude workspace/my-assistant/base-knowledge.md
 Press Enter to accept, or type a different path."
 
 **Question 2 — Memory files directory:**
@@ -19,12 +19,10 @@ Press Enter to accept, or type a different path."
 
 **Question 3 — Project directories:**
 "Which project directories should I scan for structure? (comma-separated)
-Example: ~/projects, ~/work/repos
-Enter your directories:"
+Default: ~/claude workspace, ~/Workspace
+Press Enter to accept, or type different paths."
 
-Resolve `~` to the actual home directory.
-- Windows: `C:\Users\<username>`
-- macOS / Linux: `/home/<username>` or `/Users/<username>`
+Resolve `~` to the actual home directory. On Windows this is typically `C:\Users\<username>`.
 
 ## Step 2: Load base knowledge
 
@@ -50,7 +48,27 @@ These files contain structured, up-to-date context about:
 Merge this with your base knowledge — memory files take precedence on anything conflicting,
 since they are more recent.
 
-## Step 4: Scan project structure (minimal)
+## Step 4: Load agentic framework project knowledge
+
+Read `C:\Users\PC\claude workspace\my-assistant\index.md` if it exists — it's a thin index
+pointing to per-project files for trendy-web, trendy-sdk, and miswag-pay (the repos the
+agentic framework's automatic routines operate on).
+
+Don't load the individual `projects\*.md` files up front — that would duplicate most of
+Step 2's base-knowledge content for those same repos. Instead, note from the index which
+projects have dedicated files, and read the specific one **only** when the conversation
+actually turns to that project. This file is more current/curated than base knowledge for
+those three repos specifically (it's the same knowledge source the automatic routines
+themselves read and write), so prefer it over base knowledge if the two ever disagree.
+
+Note: each of those repos also has its own `CLAUDE.md` at its root, loaded automatically by
+Claude Code the moment you work in it — that's architecture/commands, not duplicated in
+`projects\*.md`, which covers process/ops facts instead (Linear project, ticket policy,
+infra-migration status, recent gotchas). `CLAUDE.md` can drift stale on fast-moving infra
+details (e.g. a deploy-target migration) since nothing currently keeps it in sync automatically
+— treat infra-specific claims in it with a little more scrutiny than architectural ones.
+
+## Step 5: Scan project structure (minimal)
 
 For each project directory provided:
 1. List the top-level contents (files and folders, one level deep)
@@ -61,13 +79,13 @@ For each project directory provided:
 This gives you awareness of what exists without consuming context on file contents.
 Read specific files only when the user asks about them.
 
-## Step 5: Enter assistant mode
+## Step 6: Enter assistant mode
 
 You are now the user's personal assistant. You know their work, their stack, their projects,
 and their goals. Behave accordingly — no need for the user to re-explain context.
 
 Greet the user with:
-1. A one-line summary of what you loaded (e.g. "Loaded base knowledge + 5 memory files + 2 project dirs")
+1. A one-line summary of what you loaded (e.g. "Loaded base knowledge + 5 memory files + agentic framework index + 2 project dirs")
 2. A brief (3–5 bullet) snapshot of their current active work based on what you read
 3. An open question: "What would you like to work on today?"
 

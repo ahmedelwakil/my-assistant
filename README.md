@@ -19,32 +19,34 @@ Four skills that work together to give Claude a persistent, cumulative understan
 
 ## How it works
 
-### Three knowledge layers
+### Four knowledge layers
 
-Every `/my-assistant` session loads:
+Every `/my-assistant` session loads, and every technical-task workflow reads:
 
-1. **Base knowledge** (`~/.claude/my-assistant/base-knowledge.md`) — a synthesized, cumulative record of everything Claude has helped you with across all past sessions. Built by `/my-assistant-update`, grown by `/my-assistant-save`.
-2. **Memory files** (`~/.claude/projects/*/memory/*.md`) — structured notes Claude Code maintains about your projects, preferences, and decisions.
-3. **Project structure** — a minimal scan of your project directories (file names only, no content reads).
+1. **`CLAUDE.md`** (each project's own root, if present) — architecture, commands, codebase conventions. Auto-loaded by Claude Code for interactive sessions; explicitly read by the automated workflow pipeline below, since that behavior doesn't extend to spawned subagents.
+2. **Memory files** (`~/.claude/projects/*/memory/*.md`) — structured notes Claude Code maintains per project directory: settled decisions, resolved investigations, standing feedback, accumulated organically over time.
+3. **Base knowledge** (`~/claude workspace/my-assistant/base-knowledge.md` by default — configurable) — a synthesized, cumulative record of everything Claude has helped you with across all past sessions. Built by `/my-assistant-update`, grown by `/my-assistant-save`.
+4. **Project structure** — a minimal scan of your project directories (file names only, no content reads).
 
-### Multi-agent task workflow
+If you're also running the automated-workflow pipeline (below) against specific repos, two more files sit alongside these per repo: a thin cross-cutting index and a per-project knowledge file, kept current by the workflows themselves rather than only by manual saves.
 
-When `/my-assistant` detects a technical task, it offers the full workflow. Tasks can be handed off as:
-- A **Linear ticket ID** — full ticket context fetched automatically
-- A **file + line reference** — investigation starts from there
-- A **free text description** — clarified before planning
+### Technical task workflow
 
-The workflow runs up to 5 agents:
+When `/my-assistant` detects a technical task, it offers `/my-assistant-task` — a pipeline built entirely on installed Superpowers skills rather than bespoke agent roles:
 
-| Agent | Role |
-|---|---|
-| Main | Plans, executes steps, gates |
-| Intent & Conventions | Reviews against task intent and project conventions |
-| Test Writer | Writes tests for the detected test runner |
-| Coverage Reviewer | Reviews test coverage for gaps |
-| Architecture (conditional) | Flags structural violations and tech debt |
+```
+(Feature only: brainstorming → grill-me, or a self-interview simulation when unattended)
+  → writing-plans          (rigorous plan: exact file paths, real code, no placeholders)
+  → subagent-driven-development   (fresh Implementer per task → Task Reviewer → bounded fix loop)
+  → requesting-code-review        (one independent reviewer, prompt-tailored by task type)
+  → receiving-code-review         (triage: fix, or reasoned pushback — Critical findings always escalate)
+  → verification-before-completion (fresh proof-command run, no claims without current evidence)
+  → finishing-a-development-branch (always a draft PR — never merge, never mark ready)
+```
 
-Five supervision modes let you control how much you stay in the loop — from gating every file write to fully autonomous execution with escalation only on conflicts.
+Bug Fix and Refactor skip the Spec step — their scope is bounded enough not to need it. Every phase invokes the real installed skill by name rather than reimplementing its logic.
+
+The same pipeline also runs unattended, triggered by GitHub/Linear/Sentry/Slack events against a configured set of repos — same review mechanism, same knowledge layers, same "always ends in a draft PR" policy. That part of the setup is more involved to configure than the base skills above; see the workflow scripts under `workflows/` if you want to adapt it.
 
 ### Knowledge accumulation
 
@@ -90,15 +92,20 @@ Restart Claude Code after installing. Skills are available immediately as slash 
 
 ---
 
-## Centralized data directory
+## Data directory (knowledge + runtime state)
 
-All assistant data lives in `~/.claude/my-assistant/`:
+Knowledge and runtime state live in a directory you configure (default `~/claude workspace/my-assistant/`) — separate from this repo, which holds the skills/commands/workflow scripts themselves as the single source of truth:
 
 ```
-~/.claude/my-assistant/
+~/claude workspace/my-assistant/
 ├── base-knowledge.md          — cumulative session history
+├── index.md                   — thin cross-cutting index (shared guidelines, project pointers)
 ├── projects/
 │   └── <project-name>.md      — per-project conventions and config
+├── state/
+│   ├── routine-state.json     — per-platform, per-repo checkpoints
+│   ├── kill-switch.json       — global + per-repo enable/disable
+│   └── repo-locks.json        — concurrency/dedup for code-change routines
 └── diffs/
     └── <project>-<task>-<date>/
         ├── step-01.diff

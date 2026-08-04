@@ -1,17 +1,24 @@
 # my-assistant — Windows installer
-# Copies skills to ~/.claude/skills/ so Claude Code can discover them
+# Copies skills to ~/.claude/skills/ and commands to ~/.claude/commands/ so Claude Code
+# can discover them. This repo is the single source of truth - .claude/skills and
+# .claude/commands are installed artifacts only, never hand-edited.
 
-$skillsSource = Join-Path $PSScriptRoot "skills"
-$skillsDest   = Join-Path $HOME ".claude\skills"
+$skillsSource   = Join-Path $PSScriptRoot "skills"
+$commandsSource = Join-Path $PSScriptRoot "commands"
+$skillsDest     = Join-Path $HOME ".claude\skills"
+$commandsDest   = Join-Path $HOME ".claude\commands"
 
-$skills = @("my-assistant", "my-assistant-task", "my-assistant-save", "my-assistant-update")
+$names = @("my-assistant", "my-assistant-task", "my-assistant-save", "my-assistant-update")
 
-foreach ($skill in $skills) {
-    $src  = Join-Path $skillsSource $skill
-    $dest = Join-Path $skillsDest  $skill
+New-Item -ItemType Directory -Force $commandsDest | Out-Null
+
+foreach ($name in $names) {
+    $src  = Join-Path $skillsSource $name
+    $dest = Join-Path $skillsDest  $name
     New-Item -ItemType Directory -Force $dest | Out-Null
     Copy-Item -Path (Join-Path $src "SKILL.md") -Destination (Join-Path $dest "SKILL.md") -Force
-    Write-Host "Installed: $skill"
+    Copy-Item -Path (Join-Path $commandsSource "$name.md") -Destination (Join-Path $commandsDest "$name.md") -Force
+    Write-Host "Installed: $name (skill + command)"
 }
 
 Write-Host ""

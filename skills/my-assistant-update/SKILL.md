@@ -9,20 +9,15 @@ Ask the user the following two questions (use AskUserQuestion if available, othe
 
 **Question 1 — Sessions directory:**
 "Where are your Claude session transcripts (JSONL files)?
-
-Platform defaults:
-- Windows:  C:\Users\<username>\AppData\Local\Temp\claude
-- macOS:    ~/Library/Caches/claude-code/projects  (or check ~/Library/Application Support/Claude)
-- Linux/WSL: /tmp/claude  or  ~/.local/share/claude
-
-Enter the path (or press Enter if you've set a CLAUDE_SESSIONS_DIR environment variable):"
+Default: /mnt/c/Users/PC/AppData/Local/Temp/claude
+Press Enter to accept, or type a different path."
 
 **Question 2 — Base knowledge file:**
 "Where should the base knowledge file be saved?
-Default: ~/.claude/my-assistant/base-knowledge.md
+Default: ~/claude workspace/my-assistant/base-knowledge.md
 Press Enter to accept, or type a different path."
 
-Resolve `~` to the actual home directory.
+Resolve `~` to the actual home directory. On Windows this is typically `C:\Users\<username>`.
 Ensure the output directory exists before writing (create it if needed).
 
 ## Step 2: Load existing base knowledge
