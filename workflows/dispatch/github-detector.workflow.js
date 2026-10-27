@@ -53,11 +53,11 @@ const config = await agent(
   }
 )
 
-const STATE_PATH = `${config.dataDir}\\state\\routine-state.json`
-const LOCKS_PATH = `${config.dataDir}\\state\\repo-locks.json`
-const KILL_SWITCH_PATH = `${config.dataDir}\\state\\kill-switch.json`
-const DOMAINS_DIR = `${config.dataDir}\\domains`
-const WRITE_LOCK_PATH = `${config.dataDir}\\state\\.write.lock`
+const STATE_PATH = `${config.dataDir}/state/routine-state.json`
+const LOCKS_PATH = `${config.dataDir}/state/repo-locks.json`
+const KILL_SWITCH_PATH = `${config.dataDir}/state/kill-switch.json`
+const DOMAINS_DIR = `${config.dataDir}/domains`
+const WRITE_LOCK_PATH = `${config.dataDir}/state/.write.lock`
 const WORKFLOWS_DIR = config.workflowsDir
 
 // workflow('bug-fix', ...) only resolves PRE-REGISTERED workflow names (a separate
@@ -191,7 +191,7 @@ for (const event of allEvents) {
   const classification = await agent(
     `Event on ${event.repo}: ${event.summary}
 Full context: ${event.fullContext}
-Domain notes for this repo: read ${DOMAINS_DIR}\\${event.repo}.md for conventions/context if useful.
+Domain notes for this repo: read ${DOMAINS_DIR}/${event.repo}.md for conventions/context if useful.
 Recently completed/in-flight work on this repo (for dedup): ${JSON.stringify(locks.recent_runs)}
 
 Known non-actionable patterns - classify as no-op regardless of anything else UNLESS the actual content demonstrates a real, specific problem: a linkback comment that's pure cross-reference to a ticket with no findings, a CI check-run summary with no failures, a bot comment that only restates information already present in the PR description/diff. This is about CONTENT, not authorship - a genuine bot-authored finding (a security scanner actually flagging a vulnerability, a dependency bot flagging an actually-vulnerable dependency, a check that actually failed) is real and actionable regardless of being posted by a bot. Don't let "it's automated" alone justify no-op, and don't let "it's just a linkback" alone justify action - read what it actually says.
@@ -242,7 +242,7 @@ Return this as one structured object.`,
   let ticketInfo = { ticketId: classification.ticket_id, gitBranchName: classification.git_branch_name }
   if (classification.ticket_status === 'needs-creation') {
     ticketInfo = await agent(
-      `Create a new Linear ticket for this ${classification.workflow_type} on ${event.repo} - use the same Linear project as this repo's other tickets (check ${DOMAINS_DIR}\\${event.repo}.md).
+      `Create a new Linear ticket for this ${classification.workflow_type} on ${event.repo} - use the same Linear project as this repo's other tickets (check ${DOMAINS_DIR}/${event.repo}.md).
 Context: ${event.fullContext}
 Reasoning: ${classification.reasoning}
 Return the new ticket's ID and its gitBranchName field.`,

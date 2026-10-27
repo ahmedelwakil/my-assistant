@@ -48,10 +48,10 @@ const config = await agent(
   }
 )
 
-const LOCKS_PATH = `${config.dataDir}\\state\\repo-locks.json`
-const PENDING_APPROVALS_PATH = `${config.dataDir}\\state\\pending-approvals.json`
-const KILL_SWITCH_PATH = `${config.dataDir}\\state\\kill-switch.json`
-const WRITE_LOCK_PATH = `${config.dataDir}\\state\\.write.lock`
+const LOCKS_PATH = `${config.dataDir}/state/repo-locks.json`
+const PENDING_APPROVALS_PATH = `${config.dataDir}/state/pending-approvals.json`
+const KILL_SWITCH_PATH = `${config.dataDir}/state/kill-switch.json`
+const WRITE_LOCK_PATH = `${config.dataDir}/state/.write.lock`
 const WORKFLOWS_DIR = config.workflowsDir
 
 // workflow('bug-fix', ...) only resolves PRE-REGISTERED workflow names (a separate

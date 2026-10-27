@@ -53,7 +53,7 @@ const config = await agent(
 )
 
 const REPOS = config.repos
-const DIGEST_PATH = `${config.dataDir}\\state\\monitoring-digest.md`
+const DIGEST_PATH = `${config.dataDir}/state/monitoring-digest.md`
 
 phase('Gather')
 const perRepo = await parallel(

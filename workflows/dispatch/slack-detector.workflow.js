@@ -53,11 +53,11 @@ const config = await agent(
   }
 )
 
-const STATE_PATH = `${config.dataDir}\\state\\routine-state.json`
-const LOCKS_PATH = `${config.dataDir}\\state\\repo-locks.json`
-const KILL_SWITCH_PATH = `${config.dataDir}\\state\\kill-switch.json`
-const DOMAINS_DIR = `${config.dataDir}\\domains`
-const WRITE_LOCK_PATH = `${config.dataDir}\\state\\.write.lock`
+const STATE_PATH = `${config.dataDir}/state/routine-state.json`
+const LOCKS_PATH = `${config.dataDir}/state/repo-locks.json`
+const KILL_SWITCH_PATH = `${config.dataDir}/state/kill-switch.json`
+const DOMAINS_DIR = `${config.dataDir}/domains`
+const WRITE_LOCK_PATH = `${config.dataDir}/state/.write.lock`
 const WORKFLOWS_DIR = config.workflowsDir
 
 // workflow('bug-fix', ...) only resolves PRE-REGISTERED workflow names (a separate
@@ -166,7 +166,7 @@ for (const event of allEvents) {
     `Slack message: ${event.summary}
 Full context: ${event.fullContext}
 Likely repo: ${event.likelyRepo || 'none identified'}
-${repoMeta ? `Domain notes: ${DOMAINS_DIR}\\${repoMeta.name}.md` : ''}
+${repoMeta ? `Domain notes: ${DOMAINS_DIR}/${repoMeta.name}.md` : ''}
 Recently completed/in-flight work on this repo (dedup, if a repo applies): ${JSON.stringify(locks.recent_runs)}
 
 Most Slack triggers are "investigate-and-respond" (answer a question, give a status update) or "no-op" (not addressed to the assistant, purely social). Only classify as a code-change type (bug-fix/feature/refactor) if ${config.notify.userName} is genuinely asking for one AND a repo was identified - a code-change workflow cannot run without a repo.
@@ -214,7 +214,7 @@ Classify: workflow_type, warrants_action, ticket_status (existing/needs-creation
   let ticketInfo = { ticketId: classification.ticket_id, gitBranchName: classification.git_branch_name }
   if (isCodeChange && classification.ticket_status === 'needs-creation') {
     ticketInfo = await agent(
-      `Create a new Linear ticket for this Slack-triggered ${classification.workflow_type} on ${repoMeta.name} - use the same Linear project as this repo's other tickets (check ${DOMAINS_DIR}\\${repoMeta.name}.md).
+      `Create a new Linear ticket for this Slack-triggered ${classification.workflow_type} on ${repoMeta.name} - use the same Linear project as this repo's other tickets (check ${DOMAINS_DIR}/${repoMeta.name}.md).
 Context: ${event.fullContext}
 Return the new ticket's ID and gitBranchName field.`,
       { phase: 'Classify & Dispatch', schema: { type: 'object', properties: { ticketId: { type: 'string' }, gitBranchName: { type: 'string' } }, required: ['ticketId', 'gitBranchName'] } }

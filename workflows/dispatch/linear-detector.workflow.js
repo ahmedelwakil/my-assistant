@@ -53,10 +53,10 @@ const config = await agent(
   }
 )
 
-const STATE_PATH = `${config.dataDir}\\state\\routine-state.json`
-const LOCKS_PATH = `${config.dataDir}\\state\\repo-locks.json`
-const KILL_SWITCH_PATH = `${config.dataDir}\\state\\kill-switch.json`
-const DOMAINS_DIR = `${config.dataDir}\\domains`
+const STATE_PATH = `${config.dataDir}/state/routine-state.json`
+const LOCKS_PATH = `${config.dataDir}/state/repo-locks.json`
+const KILL_SWITCH_PATH = `${config.dataDir}/state/kill-switch.json`
+const DOMAINS_DIR = `${config.dataDir}/domains`
 const WORKFLOWS_DIR = config.workflowsDir
 
 // workflow('bug-fix', ...) only resolves PRE-REGISTERED workflow names (a separate
@@ -93,7 +93,7 @@ phase('Detect')
 const detected = await parallel(
   activeRepos.map((repo) => async () => {
     const result = await agent(
-      `Repo/Linear project context: ${repo.name} (some repos share a single Linear project across each other - check ${DOMAINS_DIR}\\${repo.name}.md for which project applies).
+      `Repo/Linear project context: ${repo.name} (some repos share a single Linear project across each other - check ${DOMAINS_DIR}/${repo.name}.md for which project applies).
 
 Read the "linear" -> "${repo.name}" entry from ${STATE_PATH} for the last-checked cursor.
 

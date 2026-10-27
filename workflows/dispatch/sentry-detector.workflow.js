@@ -53,11 +53,11 @@ const config = await agent(
   }
 )
 
-const STATE_PATH = `${config.dataDir}\\state\\routine-state.json`
-const LOCKS_PATH = `${config.dataDir}\\state\\repo-locks.json`
-const KILL_SWITCH_PATH = `${config.dataDir}\\state\\kill-switch.json`
-const DOMAINS_DIR = `${config.dataDir}\\domains`
-const WRITE_LOCK_PATH = `${config.dataDir}\\state\\.write.lock`
+const STATE_PATH = `${config.dataDir}/state/routine-state.json`
+const LOCKS_PATH = `${config.dataDir}/state/repo-locks.json`
+const KILL_SWITCH_PATH = `${config.dataDir}/state/kill-switch.json`
+const DOMAINS_DIR = `${config.dataDir}/domains`
+const WRITE_LOCK_PATH = `${config.dataDir}/state/.write.lock`
 const WORKFLOWS_DIR = config.workflowsDir
 
 // workflow('bug-fix', ...) only resolves PRE-REGISTERED workflow names (a separate
@@ -162,7 +162,7 @@ for (const event of allEvents) {
   const classification = await agent(
     `Sentry event on ${event.repo}: ${event.summary}
 Full context: ${event.fullContext}
-Domain notes: ${DOMAINS_DIR}\\${event.repo}.md
+Domain notes: ${DOMAINS_DIR}/${event.repo}.md
 Recently completed/in-flight work on this repo (dedup): ${JSON.stringify(locks.recent_runs)}
 
 Sentry issues are almost always "bug-fix" (a real error) or "investigate-and-respond" (worth a diagnostic comment/triage before committing to a fix, e.g. if root cause is unclear). Check whether a Linear ticket already exists for this issue; if not and this warrants a code change, ticket_status is "needs-creation".
@@ -206,7 +206,7 @@ Classify: workflow_type, warrants_action, ticket_status, ticket_id (if existing)
   let ticketInfo = { ticketId: classification.ticket_id, gitBranchName: classification.git_branch_name }
   if (classification.ticket_status === 'needs-creation') {
     ticketInfo = await agent(
-      `Create a new Linear ticket for this Sentry-reported bug on ${event.repo} - use the same Linear project as this repo's other tickets (check ${DOMAINS_DIR}\\${event.repo}.md).
+      `Create a new Linear ticket for this Sentry-reported bug on ${event.repo} - use the same Linear project as this repo's other tickets (check ${DOMAINS_DIR}/${event.repo}.md).
 Context: ${event.fullContext}
 Return the new ticket's ID and gitBranchName field.`,
       { phase: 'Classify & Dispatch', schema: { type: 'object', properties: { ticketId: { type: 'string' }, gitBranchName: { type: 'string' } }, required: ['ticketId', 'gitBranchName'] } }
