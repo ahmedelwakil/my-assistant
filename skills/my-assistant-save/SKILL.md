@@ -39,12 +39,20 @@ From the conversation (and `state/active-session.json`), list the domains this s
 
 ## Step 3: Extract candidates
 
-Review the whole session. Scan for decision language ("we agreed", "from now on", "always", "never", "I don't want", "don't", "decided", corrections of your behavior). Extract:
+Review the whole session. Scan for decision language ("we agreed", "from now on", "always", "never", "I don't want", "don't", "decided", corrections of your behavior) AND for to-do language ("later", "next", "waiting on", "follow up", "pending", "blocked", "remind me", "still need", "TODO", "don't forget", "after X is done"): each hit is a candidate decision or a candidate open item. Extract:
 - **Decisions and rules**, each with a class, a pin flag, triggers and synonyms:
   - *standing rule*: still true in a session with no codebase and in a different project (strip every repo, client, person and system name and re-test). → `global.md`.
   - *scoped decision*: tied to one domain or area → that domain's (or area's) Live decisions.
   - *narrative*: what happened, no future rule → history block only.
-- **Open items** (new, and existing ones now done), **status** (one line), **conventions and gotchas**, and the **history block**.
+- **Open items pass**, for every domain touched. Look at each current item in `## 4. Open items`, but show the user only what CHANGES or needs a decision, never a table of everything:
+  - mentioned this session: a verdict (still open, done, or proposed to drop) and how you know;
+  - names a PR or ticket, and it was mentioned this session or is older than 14 days: check it live (GitHub or Linear, whichever tools exist), at most about 5 live checks per domain, and say which you skipped;
+  - not mentioned and younger than 14 days: leave it as is and say nothing;
+  - not mentioned and older than 14 days: group them in ONE bulk question ("N older items, still open?") listing their ages;
+  - nothing you can check: keep it and mark it `unverified`.
+  Treat each line as one item; a composite line naming more than about 3 tickets is proposed for splitting into one line per ticket. A to-do that restates an existing item updates that item in place, it never adds a duplicate. Then add new items from this session. Every item carries `(as of YYYY-MM-DD)`, the date it was last CHECKED: change it only when you actually verified the item this session. If the user gives a target date ("chase on Friday"), also write `(due YYYY-MM-DD)` with an explicit date; when the item can be checked, add a hint (`check: PR #71`). Keep in the domain only what no ticket tracks, and do not propose filing a ticket just to track an item.
+  - **A fact the user states that contradicts live state** (for example "PR #71 was merged" while GitHub shows it open): do NOT record it as true and do NOT mark the item done. Show both, ask which is right, and record it as user-reported with today's date until resolved.
+- **Status** (one line), **conventions and gotchas**, and the **history block**.
 - **Pin** a scoped decision only if missing it would cause real harm in most sessions of that domain (a gate before a PR, a never-do, a convention that reviewers check). Keep pins to about 5-8 per domain.
 - **A note is not a fourth class**: a gotcha with no rule in it goes to `## 5. Conventions and gotchas`; ticket narrative goes to the history block only.
 - **Uncertain class**: ask the user, with your suggested class and what you would write meanwhile (default: a line in the history block only). Never guess silently.
@@ -63,7 +71,7 @@ First, snapshot before-counts (history line counts, headings per domain file, fi
 - **Re-read** each target file immediately before writing it: other sessions write the same files, so edit and allocate IDs from the file as it is at that moment.
 - **Lock**: if `state/.write.lock` exists and is younger than 10 minutes, wait or ask the user; create it before writing and remove it afterwards (the workflows use the same file).
 - **Status**: replaced, never appended: update BOTH the frontmatter `status:` (short, at most ~120 characters, a state not a log) and the `## 2. Status` line, and `as-of`.
-- **Open items**: check off finished ones with a date (`[x] ... (2026-10-27)`); add new ones with an as-of date.
+- **Open items**: for each verdict: still open and re-checked today means update its `(as of ...)` date; done means `[x] ... (date)`; dropped means `[x] dropped: reason (date)`. Move `[x]` items whose done date is before today out of the domain file into the history block's **Done** line (nothing is deleted, they just stop crowding the live list). Add new items with an as-of date.
 - **Live decisions**: append with the next free ID: the highest ID among entries that START a line (`- D-nnn`) in the live file and in the `## Superseded decisions` / `## Retired decisions` sections of its history file, plus one. Never read IDs from other text in history or notes files (that text contains stray look-alikes). IDs are permanent and never reused.
 - **Standing rules**: next `R-` ID (same counting rule, over `global.md` only). A pinned rule goes at the end of the pinned section (just above `## Global notes`); an unpinned tool/environment note goes at the end of the file. The pinned rule lines (the lines the loader reads) stay under about 4,500 characters in total and each rule line under about 400; if they would not, move the least critical rule to the notes.
 - **History**: append one block, oldest first, to `history/<primary domain>.md`:
@@ -80,7 +88,7 @@ First, snapshot before-counts (history line counts, headings per domain file, fi
 
 1. History line counts only grew; no section heading vanished from any domain file.
 2. Size report (information only, never a gate and never a reason to move or trim anything): for each domain written, state its size in KB and approximate tokens (bytes divided by 4) and its live decision count. Mention once, as a suggestion for the user to accept or ignore, when a domain passes about 20 KB (about 5,000 tokens), has more than 30 live decisions (the loader then reads only pinned entries plus a trigger index), has more than 100 (propose a consolidation: merge, retire to history, which the user confirms), or has open items whose as-of date is older than 30 days.
-3. IDs unique; triggers present on every decision (add synonyms).
+3. IDs unique; triggers present on every decision (add synonyms); every open item carries an ISO date (the latest one is its age; an item with none counts as stale).
 4. Layout integrity: no `*.notes.md` file changed; every domain file still has its frontmatter (including `status:`) and all six sections; every `src:` points at a memory file, a `history/` file, a repo doc or a user instruction, never at a path outside this layout; nothing new was written outside `domains/`, `history/`, `state/` and the memory directory.
 5. Report per file: what was added, what was superseded, what was skipped as already known, and anything awaiting confirmation.
 

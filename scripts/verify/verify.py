@@ -2,7 +2,7 @@
 """Verification checks for a my-assistant data directory and for this repo.
 
 Usage:  python -X utf8 scripts/verify/verify.py <check> [options]
-Checks: structure | sources | hook | workflows | privacy | ledger | all
+Checks: structure | sources | hook | workflows | privacy | ledger | open-items | all
 Run `verify.py --help` for the options. Read-only: it never changes your data or the repo.
 Exit code 0 = every check passed, 1 = at least one failed.
 """
@@ -67,6 +67,12 @@ def domain_files(dd):
     return out
 
 
+def open_items(text):
+    """Unchecked items (`- [ ]`) in the '## 4. Open items' section."""
+    m = re.search(r"(?ms)^## 4\. Open items\s*$(.*?)(?=^## 5\.|\Z)", text)
+    return re.findall(r"(?m)^- \[ \] .*$", m.group(1)) if m else []
+
+
 def frontmatter(text):
     m = re.match(r"^---\n(.*?)\n---\n", text, re.S)
     return m.group(1) if m else ""
@@ -95,6 +101,8 @@ def check_structure(a):
         ok("%s: status <= 130 chars" % name, len(st) <= 130, "%d" % len(st))
         ids = re.findall(r"(?m)^- (D-\d+)", t)
         ok("%s: unique decision ids" % name, len(ids) == len(set(ids)))
+        undated = [l[:50] for l in open_items(t) if not re.search(r"\d{4}-\d{2}-\d{2}", l)]
+        ok("%s: every open item carries a date" % name, not undated, "%d undated" % len(undated) if undated else "")
         bad = []
         for e in re.split(r"(?m)^(?=- D-\d+)", t)[1:]:
             head = e.split("\n", 1)[0]
@@ -289,7 +297,39 @@ def check_ledger(a):
     ok("%d legacy session blocks found verbatim in history/*.md" % len(blocks), not missing, "%d missing" % len(missing))
 
 
-CHECKS = {"structure": check_structure, "sources": check_sources, "hook": check_hook, "workflows": check_workflows, "privacy": check_privacy, "ledger": check_ledger}
+def check_open_items(a):
+    """Report open items by age. Informational: it fails only with --strict (undated, or older than 90 days)."""
+    import datetime
+    print("open items (age report; the date used is the latest ISO date in each item)")
+    dd = data_dir(a.data_dir)
+    today = datetime.date.fromisoformat(a.today) if a.today else datetime.date.today()
+    tot = undated = o30 = o90 = unver = 0
+    rows = []
+    for f, ns in domain_files(dd):
+        name = os.path.relpath(f, dd)
+        for l in open_items(rd(f)):
+            tot += 1
+            ds = re.findall(r"\d{4}-\d{2}-\d{2}", l)
+            if re.search(r"unverified|check live|re-check live|ask the user", l, re.I):
+                unver += 1
+            if not ds:
+                undated += 1
+                rows.append((name, "UNDATED", l[:80]))
+                continue
+            age = (today - datetime.date.fromisoformat(max(ds))).days
+            if age > 30:
+                o30 += 1
+                rows.append((name, "%dd" % age, l[:80]))
+            if age > 90:
+                o90 += 1
+    print("  %d open items: %d undated, %d older than 30 days, %d older than 90 days, %d marked unverified" % (tot, undated, o30, o90, unver))
+    for r in sorted(rows, key=lambda r: (r[0], r[1]))[:30]:
+        print("    %-26s %-8s %s" % r)
+    if a.strict:
+        ok("no undated open items and none older than 90 days", undated == 0 and o90 == 0)
+
+
+CHECKS = {"structure": check_structure, "sources": check_sources, "hook": check_hook, "workflows": check_workflows, "privacy": check_privacy, "ledger": check_ledger, "open-items": check_open_items}
 
 
 def main():
@@ -299,6 +339,8 @@ def main():
     ap.add_argument("--memory-dir", help="memory directory (default: every ~/.claude/projects/*/memory)")
     ap.add_argument("--deny", help="comma-separated words that must not appear in the repo (privacy check)")
     ap.add_argument("--ledger", help="legacy ledger file to verify against history/ (ledger check)")
+    ap.add_argument("--strict", action="store_true", help="open-items check: fail on undated items or items older than 90 days")
+    ap.add_argument("--today", help="override today's date (YYYY-MM-DD) for the open-items age report")
     a = ap.parse_args()
     for name in (CHECKS if a.check == "all" else [a.check]):
         CHECKS[name](a)
