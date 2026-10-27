@@ -31,4 +31,4 @@ for name in "${names[@]}"; do
 done
 
 echo ""
-echo "Done. Restart Claude Code, then run /my-assistant-update to build your base knowledge."
+echo "Done. Restart Claude Code, then run /my-assistant to start, and /my-assistant-save to record knowledge. (/my-assistant-update is deprecated.)"

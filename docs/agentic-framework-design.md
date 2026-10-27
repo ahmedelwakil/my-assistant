@@ -1,5 +1,7 @@
 # my-assistant Agentic Framework Design
 
+> **Status (2026-10-27): the automatic routines (GitHub, Linear, Sentry and Slack detectors, monitoring digest) are PAUSED** (scheduled tasks disabled). This document remains the design reference; the manual `/my-assistant-task` path is unaffected. Knowledge storage in Section 9 now uses per-domain files (`domains/`, `history/`) instead of one `base-knowledge.md` ledger; see README.
+
 **Scope**: this document describes the architecture of the optional automated/unattended pipeline (Section 2 onward) that sits behind `/my-assistant-task`. It's a design reference, not a build log — implementation history, real run data, and incident write-ups for a specific deployment belong in that deployment's own `projects/<framework-name>.md` file (per the knowledge-store convention in Section 9), not here.
 
 ## 1. Vision

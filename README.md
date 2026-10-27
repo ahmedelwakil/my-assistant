@@ -1,5 +1,7 @@
 # my-assistant
 
+> **Status (2026-10-27):** the scheduled routines described under the agentic framework (GitHub, Linear, Sentry, Slack detectors and the monitoring digest) are **paused**: their scheduled tasks are disabled. The design stays documented below; nothing was removed.
+
 A personal AI assistant for developers, built as a Claude Code skill set.
 
 Four skills that work together to give Claude a persistent, cumulative understanding of your work — and a structured multi-agent workflow for technical tasks.
@@ -10,9 +12,9 @@ Four skills that work together to give Claude a persistent, cumulative understan
 
 | Skill | Invoke | Purpose |
 |---|---|---|
-| `my-assistant` | `/my-assistant` | Session entry point — loads knowledge, detects tasks, offers workflow |
-| `my-assistant-update` | `/my-assistant-update` | Bulk-imports past Claude sessions into your base knowledge |
-| `my-assistant-save` | `/my-assistant-save` | Checkpoints the current session into base knowledge |
+| `my-assistant` | `/my-assistant [domain]` | Session entry point — loads standing rules, shows a domain picker, deep-loads one domain, detects tasks |
+| `my-assistant-update` | `/my-assistant-update` | **Deprecated.** One-time bulk import of old sessions into the legacy ledger |
+| `my-assistant-save` | `/my-assistant-save` | Saves the session as classified, confirmed entries in per-domain files + history |
 | `my-assistant-task` | `/my-assistant-task` | Multi-agent technical task workflow (bug fix, feature, refactor) |
 
 ---
@@ -25,7 +27,7 @@ Every `/my-assistant` session loads, and every technical-task workflow reads:
 
 1. **`CLAUDE.md`** (each project's own root, if present) — architecture, commands, codebase conventions. Auto-loaded by Claude Code for interactive sessions; explicitly read by the automated workflow pipeline below, since that behavior doesn't extend to spawned subagents.
 2. **Memory files** (`~/.claude/projects/*/memory/*.md`) — structured notes Claude Code maintains per project directory: settled decisions, resolved investigations, standing feedback, accumulated organically over time.
-3. **Base knowledge** (`<dataDir>/base-knowledge.md`) — a synthesized, cumulative record of everything Claude has helped you with across all past sessions. Built by `/my-assistant-update`, grown by `/my-assistant-save`.
+3. **Domain files** (`<dataDir>/domains/*.md`, plus `global.md` for standing rules) — compact, ordered decisions with triggers, open items and one-line status, grown by `/my-assistant-save`. Session narrative lives in `history/<domain>.md` and is searched, not bulk-read. The old single ledger `base-knowledge.md` is a frozen legacy archive.
 4. **Project structure** — a minimal scan of your project directories (file names only, no content reads).
 
 If you're also running the automated-workflow pipeline (below) against specific repos, two more files sit alongside these per repo: a thin cross-cutting index and a per-project knowledge file, kept current by the workflows themselves rather than only by manual saves.
@@ -98,9 +100,9 @@ Restart Claude Code after installing. Skills are available immediately as slash 
 ## First run
 
 1. Open Claude Code in any directory
-2. Run `/my-assistant-update` first — it'll ask the one bootstrap question (where your data directory should live), set up the whole data directory structure and `config.json` in one shot, then ask where your Claude session transcripts live (the one field it needs that isn't resolved automatically) before importing them
-3. It builds `<dataDir>/base-knowledge.md` from your past sessions
-4. Run `/my-assistant` to start your first real session — by now nothing gets asked again
+2. Run `/my-assistant` — it asks the one bootstrap question (where your data directory should live) and sets up the data directory structure and `config.json` in one shot
+3. Work as usual, and run `/my-assistant-save` at the end of a session: it shows one batched proposal and writes only what you confirm
+4. Next session, `/my-assistant` loads your standing rules and shows a domain picker
 
 ---
 
@@ -111,10 +113,16 @@ Knowledge, runtime state, and this deployment's own configuration all live in a 
 ```
 <wherever you chose>/
 ├── config.json                — this deployment's settings (see below); created on first run, never by the installers
-├── base-knowledge.md          — cumulative session history
-├── index.md                   — thin cross-cutting index (shared guidelines, project pointers)
+├── index.md                   — thin index (layout, pointers)
+├── domains/
+│   ├── global.md              — standing rules (R-), always loaded
+│   ├── <name>.md              — one per project/topic: context, status, decisions, open items
+│   └── <area>.area.md         — optional: rules shared by the domains of one area
+├── history/
+│   └── <name>.md              — session blocks, oldest first, searched not bulk-read
+├── base-knowledge.md          — frozen legacy ledger (read-only, search only)
 ├── projects/
-│   └── <project-name>.md      — per-project conventions and config
+│   └── <project-name>.md      — legacy per-project narrative (kept; new facts go to domains/)
 ├── state/
 │   ├── routine-state.json     — per-platform, per-repo checkpoints
 │   ├── kill-switch.json       — global + per-repo enable/disable

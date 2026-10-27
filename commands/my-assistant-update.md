@@ -1,4 +1,11 @@
+---
+name: my-assistant-update
+description: DEPRECATED, do not run. Legacy bulk import of old Claude session transcripts into the single base-knowledge ledger. Kept for reference only; use /my-assistant-save to record knowledge.
+---
+
 # /my-assistant-update
+
+> **DEPRECATED (2026-10-27).** The owner used this once for the initial import and retired it. It writes to the frozen legacy ledger `base-knowledge.md`, and its `sessionsDir` default points at a scratchpad folder, not the real transcripts. If invoked, tell the user it is retired, point them to `/my-assistant-save`, and stop unless they explicitly insist. The original instructions are kept below unchanged (mark, don't delete).
 
 Update the base knowledge file for /my-assistant by synthesizing Claude session transcripts.
 This command is additive — it never deletes existing knowledge, even if source sessions are gone.

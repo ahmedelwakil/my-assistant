@@ -28,4 +28,4 @@ foreach ($name in $names) {
 }
 
 Write-Host ""
-Write-Host "Done. Restart Claude Code, then run /my-assistant-update to build your base knowledge."
+Write-Host "Done. Restart Claude Code, then run /my-assistant to start, and /my-assistant-save to record knowledge. (/my-assistant-update is deprecated.)"

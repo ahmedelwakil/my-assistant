@@ -1,93 +1,84 @@
+---
+name: my-assistant-save
+description: Save the current session's knowledge into the user's my-assistant data, structured and ordered, so later /my-assistant loads find it. Use when the user runs /my-assistant-save, says "save this session", "remember this", "note that", or is wrapping up a session that produced decisions, corrections or open items.
+---
+
 # /my-assistant-save
 
-Save the current session's knowledge to the right place — not just one big journal. Run this before closing the terminal, or anytime you want to checkpoint important progress.
+Save this session's knowledge so that a later `/my-assistant` load finds it with minimum tokens. Nothing is written until the user confirms ONE batched proposal. Nothing is ever deleted: old material is marked superseded and moved to history.
+
+## Where knowledge lives
+
+```
+<dataDir>/
+  index.md              thin: layout + pointers
+  domains/global.md     standing rules (R-), always loaded, plus global notes
+  domains/<name>.md     one per project/topic: sections 1-6 below, always read in full on deep load
+  domains/<area>.area.md  optional: rules shared by several domains of one area
+  history/<name>.md     session blocks, oldest first, searched, never bulk-read
+  base-knowledge.md     frozen legacy ledger (read-only, search only)
+```
+
+Domain file layout (keep the headings exactly): frontmatter (`domain`, `area`, `lifecycle` active|paused|archived, `namespace`, `sensitive`, `status` = one line of at most ~120 characters that the picker greps, `as-of`, optional `live-sources`), then `## 1. Context`, `## 2. Status` (ONE line), `## 3. Live decisions`, `## 4. Open items`, `## 5. Conventions and gotchas`, `## 6. Pointers and history`.
+
+Decision entry (about 60 tokens):
+```
+- D-014 [pin] <the rule in one or two sentences>.
+  triggers: metadata, meta_data, swagger, casts | decided: 2026-09-30 (PR #52)
+  why: <one clause> | src: <memory file, history block or doc>
+```
+Standing rule in `global.md`: `R-007 <rule>. | triggers: ... | why: ... | src: ...`.
 
 ## Step 1: Load configuration
 
-Check if `dataDir` is already known this session. If not: check for a pointer file at `~/.claude/my-assistant/config-location` (resolve `~` to the actual home directory — on Windows this is typically `C:\Users\<username>`).
+Use `dataDir` if known this session, else `~/.claude/my-assistant/config-location` → `configPath` → `config.json`. If the pointer is missing, ask the single question "Where should your my-assistant data directory live?" and set it up as `/my-assistant` Step 1 does.
 
-- **If it exists**: read it for `configPath`, then read that file. Use its `dataDir` field directly — never ask.
-- **If it doesn't exist**: this is the very first time any my-assistant skill has run on this machine. Ask exactly one question (`AskUserQuestion` if available, otherwise plain text) — no suggested default, just an open question:
+## Step 2: Identify the domains touched
 
-  "Where should your my-assistant data directory live?"
+From the conversation (and `state/active-session.json`), list the domains this session worked in. A new topic with no domain file gets a proposed new domain (name, area, lifecycle) in the batch. A session spanning two domains gets one history block and a one-line pointer in the other's history.
 
-  Once answered, in this order:
-  1. Create that directory (`dataDir`) if it doesn't exist yet, along with its full structure: `base-knowledge.md` (empty), `index.md` (a skeleton with empty sections), `projects/`, `state/` (with a starter `kill-switch.json` — `{"global_enabled": true, "repos": {}, "budgets": {"perRunTokens": 2000000, "dailyAggregateTokens": 20000000}}`), `diffs/`.
-  2. Resolve the rest automatically, without asking: `memoryDir` → `~/.claude/projects`; `projectDirs` → `[~/claude workspace, ~/Workspace]`.
-  3. Write `dataDir`, `memoryDir`, and `projectDirs` into `<dataDir>/config.json`.
-  4. Create `~/.claude/my-assistant/config-location` containing `{ "configPath": "<dataDir>/config.json" }`.
-  5. Tell the user plainly what was set up and where, and that any of it can be changed just by saying so.
+## Step 3: Extract candidates
 
-If the user explicitly asks to change a stored value during a session, update `config.json` immediately — don't just acknowledge it verbally and leave the file stale.
+Review the whole session. Scan for decision language ("we agreed", "from now on", "always", "never", "I don't want", "don't", "decided", corrections of your behavior). Extract:
+- **Decisions and rules**, each with a class, a pin flag, triggers and synonyms:
+  - *standing rule*: still true in a session with no codebase and in a different project (strip every repo, client, person and system name and re-test). → `global.md`.
+  - *scoped decision*: tied to one domain or area → that domain's (or area's) Live decisions.
+  - *narrative*: what happened, no future rule → history block only.
+- **Open items** (new, and existing ones now done), **status** (one line), **conventions and gotchas**, and the **history block**.
+- **Pin** a scoped decision only if missing it would cause real harm in most sessions of that domain (a gate before a PR, a never-do, a convention that reviewers check). Keep pins to about 5-8 per domain.
+- **A note is not a fourth class**: a gotcha with no rule in it goes to `## 5. Conventions and gotchas`; ticket narrative goes to the history block only.
+- **Uncertain class**: ask the user, with your suggested class and what you would write meanwhile (default: a line in the history block only). Never guess silently.
+- **User-stated facts** ("PR merged", "issue resolved"): verify live when it is cheap; otherwise save them marked as user-reported with the date.
 
-## Step 2: Review the current session
+## Step 4: Duplicate and conflict check
 
-Look back through the current conversation and extract everything worth keeping:
+Grep the target domain file, its area file, `global.md` and the domain's history file (superseded entries) for each candidate's triggers. Do not re-save what exists. If it contradicts an existing entry, propose superseding it: new ID, the old entry moves to history marked `superseded by D-xxx`. If only part of the old entry is reversed, the new entry restates what survives (split, never leave the old one half-true). If nothing new was learned, say so and stop; write nothing.
 
-- **Tasks completed** — what was built, written, fixed, or decided
-- **New context about the user** — preferences, constraints, stack details revealed
-- **Decisions made** — architectural, business, or personal choices and their reasoning
-- **Problems solved** — the issue and the solution (not the debugging journey)
-- **Open items** — things started but not finished, or flagged for later
-- **New project information** — repos, features, deadlines, collaborators mentioned
+## Step 5: ONE numbered proposal
 
-Discard: filler conversation, failed attempts, tool noise, anything already obvious from context.
+First, snapshot before-counts (history line counts, headings per domain file, file sizes) and compute each target file's size AFTER the proposed writes. If a domain would exceed its budget, the proposal itself must include what moves to history (retire the oldest ticket-specific or narrative-only entries first, never pinned or rule-bearing ones; moved entries keep their full text in `## Superseded decisions` or a `## Retired` list in the history file, marked, never deleted). Then show a single numbered list: each candidate with its class, target file, pin flag and triggers, plus any such moves and any memory writes. The user answers "all" (which approves every numbered item, including budget moves and memory writes) or the numbers to change. Do not write before this answer. A proposal touching `CLAUDE.md` or any file in a shared repo shows the diff and needs its own confirmation; first verify whether it is gitignored. Standing rules are also written to the memory directory of the current project (a `feedback_<slug>.md` file with name/description/type frontmatter, a **Why:** and **How to apply:** line, plus one line in `MEMORY.md`; duplicate-checked) so they survive on the machine too.
 
-## Step 3: Classify each finding by kind and route it — don't dump everything into one file
+## Step 6: Write
 
-For each item extracted in Step 2, decide where it actually belongs:
+- **Status**: replaced, never appended: update BOTH the frontmatter `status:` (short, at most ~120 characters, a state not a log) and the `## 2. Status` line, and `as-of`.
+- **Open items**: check off finished ones with a date (`[x] ... (2026-10-27)`); add new ones with an as-of date.
+- **Live decisions**: append with the next free ID (highest ID across live and history, plus one). IDs are permanent and never reused.
+- **Standing rules**: next `R-` ID. A pinned rule goes at the end of the pinned section (just above `## Global notes`); an unpinned tool/environment note goes at the end of the file. The pinned section stays under about 8,000 characters (move the least critical to notes if it would not).
+- **History**: append one block, oldest first, to `history/<primary domain>.md`:
+  ```
+  ### Session: <YYYY-MM-DD HH:MM> — <topic>
+  **Done:** ... **Decided:** D-0xx, D-0yy **Open:** ... **Context:** ...
+  ---
+  ```
+  The block timestamp is the current clock at save time. Superseded and retired decisions go under a `## Superseded decisions` heading at the END of the same history file (create it if missing), one entry each with its full original text and `superseded by D-xxx (date)`.
+- **Status** carries forward clauses for work this session did not touch, replacing only what changed.
+- Create new domain files from the layout above.
 
-- **Was this session's work scoped to one of the agentic framework's repos?** Check `config.json`'s `repos` field (or `<dataDir>\index.md`) for the current list.
-  - **Process/ops fact** (Linear project details, ticket/branch policy notes, infra-migration status, a gotcha about how something in *this repo's automation* behaves) → goes into `<dataDir>\projects\<repo>.md`.
-  - **Confirmed architecture fact, or a correction to something that repo's `CLAUDE.md` gets wrong or has gone stale on** (e.g. a deploy-target migration `CLAUDE.md` doesn't reflect) → do NOT write directly. `CLAUDE.md` lives in a shared team repo. Instead, draft the proposed diff and show it to the user: "This session confirmed/changed X, which `CLAUDE.md` says Y about — want me to update it?" Only write it if they confirm.
-- **Cross-cutting, not repo-specific** (a standing preference, a shared convention that applies across projects) → goes into `index.md` directly.
-- **Everything else** — general narrative, non-code projects, anything that doesn't fit the above → goes into `base-knowledge.md`, same as before.
+## Step 7: Verify and report
 
-An item can land in more than one place if it's genuinely both (e.g. a new standing preference discovered *while* doing repo-specific work — note it in both `index.md` and, if repo-specific detail matters, `projects\<repo>.md`).
+1. History line counts only grew; no section heading vanished from any domain file.
+2. Each domain file is within budget (about 8-12 KB, 2,000-3,000 tokens; the largest active domains may reach about 14 KB). If a write would exceed it, **stop and propose what to move to history first**; do not trim silently. A domain past about 100 live decisions triggers a consolidation proposal (merge, retire to history) that the user confirms.
+3. IDs unique; triggers present on every decision (add synonyms).
+4. Report per file: what was added, what was superseded, what was skipped as already known, and anything awaiting confirmation.
 
-## Step 4: Check for duplicates in each target file
-
-Before writing to any of the files identified in Step 3, read that file's current content.
-Do not re-save anything already captured there. Only append genuinely new information.
-
-If nothing new was learned this session across all targets, tell the user and stop — do not write an empty entry anywhere.
-
-## Step 5: Write to each target
-
-**`base-knowledge.md`** — append this block at the end:
-
-```
-### Session: <YYYY-MM-DD HH:MM> — <one-line topic summary>
-
-**Tasks completed:**
-- <bullet per item>
-
-**Decisions & reasoning:**
-- <bullet per item>
-
-**Open items:**
-- <bullet per item>
-
-**New context:**
-- <bullet per item>
-
----
-```
-
-Also add the current timestamp to the `## Processed Sessions` index at the top of the file
-in the format: `manual-save-<YYYY-MM-DD-HHMM>` so future `/my-assistant-update` runs know
-this session's insights are already captured and don't duplicate them.
-
-**`projects\<repo>.md`** — append or fold new facts into the relevant existing section (Stack / Conventions / Known gotchas), matching that file's existing style. Don't just tack on a dated session log — this file is meant to read as current-state knowledge, not a journal.
-
-**`index.md`** — append to the relevant existing section (shared dev guidelines / standing preferences / project pointers), same style-matching rule as above.
-
-**`CLAUDE.md`** — only after the user confirms per Step 3. Make the smallest edit that fixes/adds the fact, matching that file's existing section structure and tone — it's meant to read as durable project documentation, not a change log.
-
-## Step 6: Confirm
-
-Tell the user:
-- What was saved, broken down by file (e.g. "base-knowledge.md: 2 items, projects\my-repo.md: 1 gotcha, index.md: nothing new")
-- What was skipped (already known)
-- Any `CLAUDE.md` update that's still pending your confirmation
-- Remind them: "Run /my-assistant-save again anytime, or /my-assistant-update to bulk-import past sessions."
+If the user later says "as I told you" about something missing, ask which decision it was, fix its triggers or synonyms, and note the miss in `state/miss-log.md`.
