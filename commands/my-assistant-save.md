@@ -60,11 +60,12 @@ First, snapshot before-counts (history line counts, headings per domain file, fi
 
 ## Step 6: Write
 
+- **Re-read** each target file immediately before writing it: other sessions write the same files, so edit and allocate IDs from the file as it is at that moment.
 - **Lock**: if `state/.write.lock` exists and is younger than 10 minutes, wait or ask the user; create it before writing and remove it afterwards (the workflows use the same file).
 - **Status**: replaced, never appended: update BOTH the frontmatter `status:` (short, at most ~120 characters, a state not a log) and the `## 2. Status` line, and `as-of`.
 - **Open items**: check off finished ones with a date (`[x] ... (2026-10-27)`); add new ones with an as-of date.
-- **Live decisions**: append with the next free ID (highest ID across live and history, plus one). IDs are permanent and never reused.
-- **Standing rules**: next `R-` ID. A pinned rule goes at the end of the pinned section (just above `## Global notes`); an unpinned tool/environment note goes at the end of the file. The pinned rule lines (the lines the loader reads) stay under about 4,500 characters in total and each rule line under about 400; if they would not, move the least critical rule to the notes.
+- **Live decisions**: append with the next free ID: the highest ID among entries that START a line (`- D-nnn`) in the live file and in the `## Superseded decisions` / `## Retired decisions` sections of its history file, plus one. Never read IDs from other text in history or notes files (that text contains stray look-alikes). IDs are permanent and never reused.
+- **Standing rules**: next `R-` ID (same counting rule, over `global.md` only). A pinned rule goes at the end of the pinned section (just above `## Global notes`); an unpinned tool/environment note goes at the end of the file. The pinned rule lines (the lines the loader reads) stay under about 4,500 characters in total and each rule line under about 400; if they would not, move the least critical rule to the notes.
 - **History**: append one block, oldest first, to `history/<primary domain>.md`:
   ```
   ### Session: <YYYY-MM-DD HH:MM> — <topic>
