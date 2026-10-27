@@ -11,3 +11,6 @@ desktop.ini
 
 # Logs
 *.log
+
+# private word list for the privacy check (never committed)
+scripts/verify/deny.txt

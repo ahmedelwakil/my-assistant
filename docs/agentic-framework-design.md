@@ -186,7 +186,7 @@ Every dispatcher checks this **first**, before doing anything else, and reads `b
 
 ## 17. How `/my-assistant-task` Relates to Routines
 
-`/my-assistant-task` (installed from this repo's `skills/`/`commands/` into `.claude` — see Section 20) is the **manual front door** into the same shared workflow scripts (Section 6) that routines invoke automatically — same pipeline, same review mechanism, same Knowledge Save step. The differences are the trigger source and, for Features, a live human in the planning loop instead of the self-interview simulation.
+`/my-assistant-task` (installed from this repo's `skills/` into `.claude` — see Section 20) is the **manual front door** into the same shared workflow scripts (Section 6) that routines invoke automatically — same pipeline, same review mechanism, same Knowledge Save step. The differences are the trigger source and, for Features, a live human in the planning loop instead of the self-interview simulation.
 
 ## 18. Security & Credential Handling
 

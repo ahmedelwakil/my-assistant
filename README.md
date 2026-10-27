@@ -107,7 +107,7 @@ Restart Claude Code after installing. Skills are available immediately as slash 
 
 ## Data directory (knowledge + runtime state + config)
 
-Knowledge, runtime state, and this deployment's own configuration all live in a directory you choose once, on first run (there's no baked-in default suggested to you — see "Configuration" above) — separate from this repo, which holds the skills/commands/workflow scripts themselves as the single source of truth. A tiny pointer file at `~/.claude/my-assistant/config-location` (created by that same first run) is what lets every later session find it again, wherever it is:
+Knowledge, runtime state, and this deployment's own configuration all live in a directory you choose once, on first run (there's no baked-in default suggested to you — see "Configuration" above) — separate from this repo, which holds the skills and workflow scripts themselves as the single source of truth. A tiny pointer file at `~/.claude/my-assistant/config-location` (created by that same first run) is what lets every later session find it again, wherever it is:
 
 ```
 <wherever you chose>/
@@ -157,6 +157,12 @@ Knowledge, runtime state, and this deployment's own configuration all live in a 
 ### Optional: compaction hook
 
 `hooks/my-assistant-compact.py` restores your pinned standing rules and the active domain's pinned decisions after a context compaction. It is read-only, never fails a session, and is not installed by the installers; see `hooks/README.md` for the one settings entry it needs.
+
+---
+
+### Verifying an install
+
+`scripts/verify/verify.py` runs read-only checks on your data directory and on this repo (structure, source pointers, the hook, the workflow scripts, a privacy scan); see `scripts/verify/README.md`.
 
 ---
 

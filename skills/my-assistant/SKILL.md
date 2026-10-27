@@ -1,6 +1,7 @@
 ---
 name: my-assistant
 description: Load the user's personal assistant context at the start of a session. Use when the user runs /my-assistant or asks to load their context or to act as their assistant. Loads the standing rules and a domain picker, then deep-loads the chosen domain.
+argument-hint: "[domain]"
 ---
 
 # /my-assistant
