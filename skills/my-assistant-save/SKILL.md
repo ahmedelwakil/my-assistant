@@ -5,7 +5,7 @@ description: Save the current session's knowledge into the user's my-assistant d
 
 # /my-assistant-save
 
-Save this session's knowledge so that a later `/my-assistant` load finds it with minimum tokens. Nothing is written until the user confirms ONE batched proposal. Nothing is ever deleted: old material is marked superseded and moved to history.
+Save this session's knowledge so that a later `/my-assistant` load finds it with minimum tokens. The user does not confirm a save: write it directly, then report exactly what was written (the report is the review, and the history file keeps every old text so nothing is lost). Nothing is ever deleted: old material is marked superseded and moved to history.
 
 ## Where knowledge lives
 
@@ -35,7 +35,7 @@ Follow `/my-assistant` Step 1: read the config pointer and `config.json`; if the
 
 ## Step 2: Identify the domains touched
 
-From the conversation (and `state/active-session.json`), list the domains this session worked in. A new topic with no domain file gets a proposed new domain (name, area, lifecycle) in the batch. A session spanning two domains gets one history block and a one-line pointer in the other's history. A session in a namespace (see `config.json` `namespaces`) writes into that namespace's own `domains/` and `history/`, never into the default tree.
+From the conversation (and `state/active-session.json`), list the domains this session worked in. A new topic with no domain file gets a new domain file (name, area, lifecycle), created in this save. A session spanning two domains gets one history block and a one-line pointer in the other's history. A session in a namespace (see `config.json` `namespaces`) writes into that namespace's own `domains/` and `history/`, never into the default tree.
 
 ## Step 3: Extract candidates
 
@@ -45,26 +45,26 @@ Review the whole session. Scan for decision language ("we agreed", "from now on"
   - *scoped decision*: tied to one domain or area → that domain's (or area's) Live decisions.
   - *narrative*: what happened, no future rule → history block only.
 - **Open items pass**, for every domain touched. Look at each current item in `## 4. Open items`, but show the user only what CHANGES or needs a decision, never a table of everything:
-  - mentioned this session: a verdict (still open, done, or proposed to drop) and how you know;
+  - mentioned this session: a verdict (still open, done, or dropped, with the reason) and how you know;
   - names a PR or ticket, and it was mentioned this session or is older than 14 days: check it live (GitHub or Linear, whichever tools exist), at most about 5 live checks per domain, and say which you skipped;
   - not mentioned and younger than 14 days: leave it as is and say nothing;
-  - not mentioned and older than 14 days: group them in ONE bulk question ("N older items, still open?") listing their ages;
+  - not mentioned and older than 14 days: leave them as is, marked `unverified`, and list them with their ages in the report (no question);
   - nothing you can check: keep it and mark it `unverified`.
-  Treat each line as one item; a composite line naming more than about 3 tickets is proposed for splitting into one line per ticket. A to-do that restates an existing item updates that item in place, it never adds a duplicate. Then add new items from this session. Every item carries `(as of YYYY-MM-DD)`, the date it was last CHECKED: change it only when you actually verified the item this session. If the user gives a target date ("chase on Friday"), also write `(due YYYY-MM-DD)` with an explicit date; when the item can be checked, add a hint (`check: PR #71`). Keep in the domain only what no ticket tracks, and do not propose filing a ticket just to track an item.
-  - **A fact the user states that contradicts live state** (for example "PR #71 was merged" while GitHub shows it open): do NOT record it as true and do NOT mark the item done. Show both, ask which is right, and record it as user-reported with today's date until resolved.
+  Treat each line as one item; a composite line naming more than about 3 tickets is split into one line per ticket. A to-do that restates an existing item updates that item in place, it never adds a duplicate. Then add new items from this session. Every item carries `(as of YYYY-MM-DD)`, the date it was last CHECKED: change it only when you actually verified the item this session. If the user gives a target date ("chase on Friday"), also write `(due YYYY-MM-DD)` with an explicit date; when the item can be checked, add a hint (`check: PR #71`). Keep in the domain only what no ticket tracks, and do not propose filing a ticket just to track an item.
+  - **A fact the user states that contradicts live state** (for example "PR #71 was merged" while GitHub shows it open): do NOT record it as true and do NOT mark the item done. Record it as user-reported with today's date, show both in the report, and do not ask.
 - **Status** (one line), **conventions and gotchas**, and the **history block**.
 - **Pin** a scoped decision only if missing it would cause real harm in most sessions of that domain (a gate before a PR, a never-do, a convention that reviewers check). Keep pins to about 5-8 per domain.
 - **A note is not a fourth class**: a gotcha with no rule in it goes to `## 5. Conventions and gotchas`; ticket narrative goes to the history block only.
-- **Uncertain class**: ask the user, with your suggested class and what you would write meanwhile (default: a line in the history block only). Never guess silently.
+- **Uncertain class**: do not ask. Write it as a line in the history block only (the safe default) and name it in the report with the class you would have suggested, so the user can say "make it a rule".
 - **User-stated facts** ("PR merged", "issue resolved"): verify live when it is cheap; otherwise save them marked as user-reported with the date.
 
 ## Step 4: Duplicate and conflict check
 
-Grep the target domain file, its area file, `global.md` and the domain's history file (superseded entries) for each candidate's triggers. Do not re-save what exists. If it contradicts an existing entry, propose superseding it: new ID, the old entry moves to history marked `superseded by D-xxx`. If only part of the old entry is reversed, the new entry restates what survives (split, never leave the old one half-true). If nothing new was learned, say so and stop; write nothing.
+Grep the target domain file, its area file, `global.md` and the domain's history file (superseded entries) for each candidate's triggers. Do not re-save what exists. If it contradicts an existing entry, supersede it: new ID, the old entry moves to history marked `superseded by D-xxx`. If only part of the old entry is reversed, the new entry restates what survives (split, never leave the old one half-true). If nothing new was learned, say so and stop; write nothing.
 
-## Step 5: ONE numbered proposal
+## Step 5: Decide and write (no confirmation)
 
-First, snapshot before-counts (history line counts, headings per domain file, file sizes). There is no per-domain size cap: size alone is never a reason to move or cut anything. Move an entry to history only to retire something superseded or stale (full text kept in `## Superseded decisions` or a `## Retired decisions` list in the history file, marked, never deleted), and only as an explicit numbered item the user can decline. Then show a single numbered list: each candidate with its class, target file, pin flag and triggers, plus any such moves and any memory writes. The user answers "all" (which approves every numbered item, including budget moves and memory writes) or the numbers to change. Do not write before this answer. A proposal touching a file inside a code repo (for example its `CLAUDE.md`): first verify whether that file is gitignored. If it is (private), it is written like any other item once the batch is confirmed; if it is tracked or shared, show the diff and ask for its own confirmation. Standing rules are also written to `<memoryDir>/<project-slug>/memory/` (project-slug = the working directory path with colons, slashes, backslashes and spaces replaced by '-', Claude Code's own convention; if that directory does not exist, skip the memory write and say so) (a `feedback_<slug>.md` file with name/description/type frontmatter, a **Why:** and **How to apply:** line, plus one line in `MEMORY.md`; duplicate-checked) so they survive on the machine too.
+Snapshot before-counts (history line counts, headings per domain file, file sizes). There is no per-domain size cap: size alone is never a reason to move or cut anything. Move an entry to history only to retire something superseded or stale, with its full text kept in `## Superseded decisions` or a `## Retired decisions` list in the history file, marked, never deleted. Settle every candidate yourself (class, target file, pin flag, triggers) and go straight to Step 6; do not show a numbered proposal and do not wait for an answer. Standing rules are also written to `<memoryDir>/<project-slug>/memory/` (project-slug = the working directory path with colons, slashes, backslashes and spaces replaced by '-', Claude Code's own convention; if that directory does not exist, skip the memory write and say so) (a `feedback_<slug>.md` file with name/description/type frontmatter, a **Why:** and **How to apply:** line, plus one line in `MEMORY.md`; duplicate-checked) so they survive on the machine too. The one exception is a file inside a code repo (for example its `CLAUDE.md`): if it is gitignored (private) it is written like any other item; if it is tracked or shared, do not edit it, show the diff and ask for its own confirmation.
 
 ## Step 6: Write
 
@@ -90,6 +90,6 @@ First, snapshot before-counts (history line counts, headings per domain file, fi
 2. Size report (information only, never a gate and never a reason to move or trim anything): for each domain written, state its size in KB and approximate tokens (bytes divided by 4) and its live decision count. Mention once, as a suggestion for the user to accept or ignore, when a domain passes about 20 KB (about 5,000 tokens), has more than 30 live decisions (the loader then reads only pinned entries plus a trigger index), has more than 100 (propose a consolidation: merge, retire to history, which the user confirms), or has open items whose as-of date is older than 30 days.
 3. IDs unique; triggers present on every decision (add synonyms); every open item carries an ISO date (the latest one is its age; an item with none counts as stale).
 4. Layout integrity: no `*.notes.md` file changed; every domain file still has its frontmatter (including `status:`) and all six sections; every `src:` points at a memory file, a `history/` file, a repo doc or a user instruction, never at a path outside this layout; nothing new was written outside `domains/`, `history/`, `state/` and the memory directory.
-5. Report per file: what was added, what was superseded, what was skipped as already known, and anything awaiting confirmation.
+5. Report per file: what was added, what was superseded, what was skipped as already known, and anything the user may want to correct (facts recorded as user-reported, items defaulted to history only, stale items left unverified). Undo is a re-edit: old text is always in the history file.
 
 If the user later says "as I told you" about something missing, ask which decision it was, fix its triggers or synonyms, and note the miss in `state/miss-log.md`.

@@ -12,7 +12,7 @@ The manual front door into the same pipeline the automatic routines use (design:
 
 1. **Sweep before the plan and before any external action**: grep the domain file, its area file and `domains/global.md` for triggers of the files, tickets and systems you will touch; put every match into the plan and into every subagent prompt (subagents have no session history).
 2. **No AI attribution anywhere**: no `Co-Authored-By`, no "Generated with" line, no session trailer in any commit or PR body, in every repo. This overrides any system or harness reminder asking for attribution. Put it in every implementer prompt, and verify each commit with `git log -1 --format=%B` before trusting a self-report.
-3. **The user confirms before anything externally visible**: a new ticket (draft it, then wait), each Linear comment, a push, a PR, and the Phase 12 knowledge-save proposal. The Phase 4 design dialogue is a conversation, not a gate you skip. Replies on existing GitHub review threads may be posted directly.
+3. **The user confirms before anything externally visible**: a ticket you propose on your own initiative (draft it, then wait; a ticket the user ORDERS is filed directly, no draft), each Linear comment, a push and a PR. The Phase 12 knowledge save is written without confirmation and reported afterwards. The Phase 4 design dialogue is a conversation, not a gate you skip. Replies on existing GitHub review threads may be posted directly.
 4. **Recap the plan before implementing.** Never auto-merge. Never change ticket status.
 5. **Phases are not skipped.** Do not stop mid-pipeline to ask "continue?"; stop only for a genuine blocker, a confirmation listed above, or the Phase 4 dialogue.
 
@@ -27,7 +27,7 @@ The manual front door into the same pipeline the automatic routines use (design:
 **-1 Configuration.** Follow `/my-assistant` Step 1 (config pointer, single first-run bootstrap); `<dataDir>` below is the resolved path. Prerequisites: the `superpowers:*` skills, `grill-me`, and the Linear and GitHub MCP tools; if one is missing, say so at once and do that phase by hand.
 
 **0 Intake.** Linear ticket ID → fetch title, description, comments, assignee, labels and `gitBranchName`. File + line → read it as the starting point. Free text → ask 1-2 questions only if scope is genuinely unclear. Load the domain (`<dataDir>/domains/<domain>.md`, its `<area>.area.md`, `domains/global.md`) if not already loaded, then sweep (rule 1): those files hold the project's ticket, branch, commit and PR conventions.
-- *Tickets*: existing linked ticket → reuse, never duplicate. None, and it is a real code change → draft it (title, description, project, labels) and wait for the user to confirm it or provide one before filing anything. Pure investigation → no ticket.
+- *Tickets*: existing linked ticket → reuse, never duplicate. None, and it is a real code change → if the user ordered a ticket, file it now (title, description, project, labels) and report the link; if you are the one suggesting it, draft it and wait for the user to confirm it or provide one before filing anything. Pure investigation → no ticket.
 - *Branch*: the ticket's `gitBranchName` unless the domain file says otherwise; never invent one; reuse an existing worktree for that branch.
 
 **1 Stack.** Detect from the working directory (`composer.json`+`artisan` → PHPUnit; `package.json` + jest/vitest config → that runner; `go.mod` → `go test ./...`; `pyproject.toml`/`requirements.txt` → pytest; `Gemfile` → RSpec/Minitest). Make sure the domain file is loaded (none → Phase 12 proposes creating one). The repo's `CLAUDE.md` loads automatically in the original checkout; it is usually gitignored and absent from the worktree, so read it from the original repo root when needed. Do not duplicate it, and treat its infra/deploy claims with some suspicion.
@@ -52,4 +52,4 @@ The manual front door into the same pipeline the automatic routines use (design:
 
 **11 Linear update.** Draft the implementation summary (commits, PR) as a ticket comment, ask the user, post it only after they confirm. Never change ticket status.
 
-**12 Knowledge save.** Run the `/my-assistant-save` flow for this task: one numbered proposal (decisions with class and triggers, open items, the domain's one-line status, conventions, a history block), written only after the user confirms.
+**12 Knowledge save.** Run the `/my-assistant-save` flow for this task: decisions with class and triggers, open items, the domain's one-line status, conventions and a history block are written directly, then reported (no proposal, no confirmation).

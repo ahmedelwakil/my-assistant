@@ -68,7 +68,7 @@ The same pipeline also runs unattended, triggered by GitHub/Linear/Sentry/Slack 
 ### Knowledge accumulation
 
 Knowledge grows only through confirmed saves:
-- `/my-assistant-save` — builds ONE numbered proposal (decisions with triggers, open items, status, a history block); you answer "all" or the numbers to change; only then does it write
+- `/my-assistant-save` — writes decisions with triggers, open items, status and a history block directly, with no confirmation, then reports exactly what it wrote (old text is kept in history, so undo is a re-edit)
 - `/my-assistant-task` — ends with the same save proposal for what the task taught
 - `/my-assistant` — notices worthwhile moments and offers a save; it never writes on its own
 
