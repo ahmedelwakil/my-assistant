@@ -67,13 +67,12 @@ The same pipeline also runs unattended, triggered by GitHub/Linear/Sentry/Slack 
 
 ### Knowledge accumulation
 
-Knowledge grows continuously:
-- `/my-assistant-update` — run once to import all past sessions, then periodically for new ones
-- `/my-assistant-save` — checkpoint mid-session or before closing
-- `/my-assistant-task` — automatically saves task results after each completed task
-- `/my-assistant` — proactively saves when it detects significant moments during conversation
+Knowledge grows only through confirmed saves:
+- `/my-assistant-save` — builds ONE numbered proposal (decisions with triggers, open items, status, a history block); you answer "all" or the numbers to change; only then does it write
+- `/my-assistant-task` — ends with the same save proposal for what the task taught
+- `/my-assistant` — notices worthwhile moments and offers a save; it never writes on its own
 
-All saves are **append-only** — existing knowledge is never overwritten or deleted.
+All saves are **append-only** — a superseded decision moves to the history file marked `superseded by D-xxx`; nothing is deleted.
 
 ---
 
@@ -136,10 +135,10 @@ Knowledge, runtime state, and this deployment's own configuration all live in a 
 
 ```json
 {
-  "dataDir": "~/claude workspace/my-assistant",
+  "dataDir": "~/my-assistant-data",
   "memoryDir": "~/.claude/projects",
-  "projectDirs": ["~/claude workspace", "~/Workspace"],
-  "sessionsDir": "~/.claude-sessions-or-platform-default",
+  "projectDirs": [],
+  "namespaces": {},
   "workflowsDir": "/path/to/this/repo/workflows",
   "notify": { "platform": "slack", "userName": "your-name" },
   "repos": [
@@ -148,10 +147,16 @@ Knowledge, runtime state, and this deployment's own configuration all live in a 
 }
 ```
 
-- `dataDir`, `memoryDir`, `projectDirs` — set in one shot on the very first run of any skill (see "Configuration" above).
-- `sessionsDir` — the one field that first-run bootstrap doesn't resolve on its own; `/my-assistant-update` asks for it the first time it runs, since it's the only skill that actually needs it.
+- `dataDir`, `memoryDir`, `projectDirs`, `namespaces` — set in one shot on the very first run of any skill (see "Configuration" above). `projectDirs` starts empty: add folders when you name them.
+- `namespaces` — optional separate trees (for example for someone else's work) that must stay apart from yours. Each entry: `"<name>": { "path": "<subfolder of dataDir>", "match": ["<word>"] }`, with its own `domains/` and `history/`. Namespaces are never scanned by the picker and load only when named.
 - `workflowsDir`, `notify`, `repos` — only used by the optional automated-workflow pipeline (`workflows/dispatch/*.workflow.js`); the four interactive skills never read or write these. If you're setting up that pipeline, add them by hand — there's no interactive prompt for them today. This still requires `config-location` to already exist (see "Prerequisite" above) — those scripts read it the same way the interactive skills do, they just can't create it themselves.
 - Each `repos[]` entry's `sentryProject` is optional and defaults to that entry's `name` if omitted — only set it explicitly when the Sentry project's actual name differs from the repo name (common when a repo maps to a differently-named backend service in Sentry).
+
+---
+
+### Optional: compaction hook
+
+`hooks/my-assistant-compact.py` restores your pinned standing rules and the active domain's pinned decisions after a context compaction. It is read-only, never fails a session, and is not installed by the installers; see `hooks/README.md` for the one settings entry it needs.
 
 ---
 

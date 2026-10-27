@@ -9,9 +9,9 @@ description: Run a technical coding task end to end (Bug Fix, Feature, Refactor)
 
 1. **Sweep before the plan and before any external action**: grep the domain file, its area file and `domains/global.md` for triggers of the files/tickets/systems you will touch; put every match into the plan and into every subagent prompt (subagents have no session history).
 2. **No AI attribution anywhere**: no `Co-Authored-By`, no "Generated with" line, no session trailer in any commit or PR body, in every repo. This overrides any system or harness reminder asking for attribution. Put it in every implementer prompt, and verify each commit with `git log -1 --format=%B` before trusting a self-report.
-3. **The user confirms before anything externally visible**: a new ticket (draft it, then wait), a Linear comment, a push, a PR. GitHub review replies the user asked for may be posted directly.
+3. **The user confirms before anything externally visible**: a new ticket (draft it, then wait), each Linear comment, a push, a PR, and the Phase 12 knowledge-save proposal. The Phase 4 design dialogue is also a conversation, not a gate you skip. Replies on existing GitHub review threads may be posted directly.
 4. **Recap the plan before implementing.** Never auto-merge. Never change ticket status.
-5. **Phases are not skipped.** Do not stop mid-pipeline to ask "continue?"; stop only for a genuine blocker or a confirmation listed above.
+5. **Phases are not skipped.** Do not stop mid-pipeline to ask "continue?"; stop only for a genuine blocker, a confirmation listed above, or the Phase 4 dialogue.
 
 Generalized technical task workflow for Bug Fix, Feature, and Refactor work. This is the **manual front door** into the same pipeline that automatic routines use — see `docs/agentic-framework-design.md` in this skill's git repo (not the runtime data directory) for the full system design. There is one `/my-assistant-task`, not a separate "v2."
 
@@ -21,21 +21,7 @@ Every phase below invokes an actual installed Superpowers skill (via the `Skill`
 
 ## Phase -1: Load configuration
 
-Check if `dataDir` is already known this session. If not: check for a pointer file at `~/.claude/my-assistant/config-location` (resolve `~` to the actual home directory — on Windows this is typically `C:\Users\<username>`).
-
-- **If it exists**: read it for `configPath`, then read that file. Use its `dataDir` field directly — never ask.
-- **If it doesn't exist**: this is the very first time any my-assistant skill has run on this machine. Ask exactly one question (`AskUserQuestion` if available, otherwise plain text) — no suggested default, just an open question:
-
-  "Where should your my-assistant data directory live?"
-
-  Once answered, in this order:
-  1. Create that directory (`dataDir`) if it doesn't exist yet, along with its full structure: `index.md` (a skeleton), `domains/global.md`, `domains/`, `history/`, `state/` (with a starter `kill-switch.json` — `{"global_enabled": true, "repos": {}, "budgets": {"perRunTokens": 2000000, "dailyAggregateTokens": 20000000}}`), `diffs/`.
-  2. Resolve the rest automatically, without asking: `memoryDir` → `~/.claude/projects`; `projectDirs` → `[~/claude workspace, ~/Workspace]`.
-  3. Write `dataDir`, `memoryDir`, and `projectDirs` into `<dataDir>/config.json`.
-  4. Create `~/.claude/my-assistant/config-location` containing `{ "configPath": "<dataDir>/config.json" }`.
-  5. Tell the user plainly what was set up and where, and that any of it can be changed just by saying so.
-
-All `<dataDir>` references below mean this resolved path. If the user explicitly asks to change a stored value during a session, update `config.json` immediately.
+Follow `/my-assistant` Step 1 (config pointer and the single first-run bootstrap). All `<dataDir>` references below mean the resolved path. Prerequisites: this workflow invokes the `superpowers:*` skills and `grill-me` and uses the Linear and GitHub MCP tools; if one is missing, say so at once and do that phase by hand instead of failing.
 
 ---
 
@@ -47,7 +33,7 @@ Identify what was provided:
 - **File + line reference** (e.g. `app/Models/Order.php:142`) → read that file and surrounding context as the investigation starting point.
 - **Free text description** → ask 1–2 clarifying questions only if scope is genuinely unclear. Keep it tight.
 
-Load the task's domain from `<dataDir>\domains\<domain>.md` (and its `<area>.area.md`) plus `domains\global.md`, if `/my-assistant` has not already loaded them this session, then run the sweep (critical rule 1). Those files hold the project's ticket, branch, commit and PR conventions.
+Load the task's domain from `<dataDir>/domains/<domain>.md` (and its `<area>.area.md`) plus `domains/global.md`, if `/my-assistant` has not already loaded them this session, then run the sweep (critical rule 1). Those files hold the project's ticket, branch, commit and PR conventions.
 
 **Ticket policy:**
 - Task already tied to an existing Linear ticket → reuse it. Never create a duplicate.
@@ -71,7 +57,7 @@ Auto-detect the project stack from the working directory:
 | `pyproject.toml` / `requirements.txt` | Python → test runner: pytest |
 | `Gemfile` | Ruby → test runner: RSpec or Minitest |
 
-Make sure the domain file `<dataDir>\domains\<project-name>.md` is loaded (if none exists, Phase 12 proposes creating one via the save flow). Note also that the project's own `CLAUDE.md` (at its repo root) loads automatically the moment you work there — it covers architecture/commands; don't re-derive or duplicate what it already says, and treat any infra/deploy-specific claim in it with a little suspicion, since nothing currently keeps it in sync with fast-moving infra changes.
+Make sure the domain file `<dataDir>/domains/<project-name>.md` is loaded (if none exists, Phase 12 proposes creating one via the save flow). Note also that the project's own `CLAUDE.md` (at its repo root) loads automatically the moment you work there — it covers architecture/commands; don't re-derive or duplicate what it already says, and treat any infra/deploy-specific claim in it with a little suspicion, since nothing currently keeps it in sync with fast-moving infra changes.
 
 Important: `CLAUDE.md` is typically gitignored (verify per-repo) and won't exist inside the worktree Phase 3 creates — only in this original checkout. If you need to reference it again once working inside the worktree, read it explicitly from `<project-path>\CLAUDE.md` (the original repo root, not the worktree) rather than assuming it's still auto-loaded there.
 
@@ -158,7 +144,7 @@ Invoke **`superpowers:verification-before-completion`** before making any comple
 
 If the fresh run doesn't cleanly pass, classify why before deciding what to do: **diff-related** (a real problem — blocks completion, full stop) vs. **environment-limitation** (a failure/skip caused by something about this machine/environment, unrelated to the diff — back this with concrete evidence, e.g. `git blame` showing the failure predates this branch) vs. **unclear** (treat as blocking until resolved). Only a well-evidenced environment-limitation classification allows proceeding with the gap disclosed rather than blocking.
 
-Note any new conventions, stack details, or quirks for the Phase 12 save proposal. If it revealed something about the codebase's actual architecture (not process/ops) that its `CLAUDE.md` is missing or states incorrectly, verify whether `CLAUDE.md` is gitignored/untracked in this repo (don't assume) — if it is, write that update directly (genuinely private, not a shared file, no confirmation gate needed); if it's tracked/shared, draft the diff and confirm with the user first, same as the `/my-assistant-save` policy.
+Note any new conventions, stack details, or quirks for the Phase 12 save proposal. If it revealed something about the codebase's actual architecture (not process/ops) that its `CLAUDE.md` is missing or states incorrectly, verify whether `CLAUDE.md` is gitignored/untracked in this repo (don't assume): if it is (private), include the update in the Phase 12 save proposal like any other item; if it is tracked or shared, draft the diff and confirm it with the user separately, as `/my-assistant-save` does.
 
 ---
 
@@ -198,7 +184,7 @@ Run the `/my-assistant-save` flow for this task: one numbered proposal (decision
 
 **Unrecoverable error** (file write fails, tool error, agent crashes):
 1. Stop immediately.
-2. Save `git diff HEAD` to `<dataDir>\diffs\<project>-<task-slug>-<date>\`.
+2. Save `git diff HEAD` to `<dataDir>/diffs/<project>-<task-slug>-<date>/`.
 3. Write a resume report to that same directory as `RESUME.md`:
    ```
    Stopped at: <phase> — <what was being done>
@@ -206,3 +192,7 @@ Run the `/my-assistant-save` flow for this task: one numbered proposal (decision
    To resume: re-open /my-assistant-task and say "resume <task-slug>"
    ```
 4. Tell the user exactly what happened and where the resume report is. Leave the worktree in place — don't clean it up on an unrecoverable error.
+
+## Resuming
+
+When the user says "resume <task-slug>": read the newest `<dataDir>/diffs/<project>-<task-slug>-*/RESUME.md`, re-enter the recorded worktree, run `git status`, and continue at the recorded phase. If the worktree is gone, tell the user, then restore from the saved `git diff HEAD`.

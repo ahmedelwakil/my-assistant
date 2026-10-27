@@ -31,11 +31,11 @@ Standing rule in `global.md`: `R-007 <rule>. | triggers: ... | why: ... | src: .
 
 ## Step 1: Load configuration
 
-Use `dataDir` if known this session, else `~/.claude/my-assistant/config-location` → `configPath` → `config.json`. If the pointer is missing, ask the single question "Where should your my-assistant data directory live?" and set it up as `/my-assistant` Step 1 does.
+Follow `/my-assistant` Step 1: read the config pointer and `config.json`; if the pointer is missing, run the single first-run bootstrap described there.
 
 ## Step 2: Identify the domains touched
 
-From the conversation (and `state/active-session.json`), list the domains this session worked in. A new topic with no domain file gets a proposed new domain (name, area, lifecycle) in the batch. A session spanning two domains gets one history block and a one-line pointer in the other's history.
+From the conversation (and `state/active-session.json`), list the domains this session worked in. A new topic with no domain file gets a proposed new domain (name, area, lifecycle) in the batch. A session spanning two domains gets one history block and a one-line pointer in the other's history. A session in a namespace (see `config.json` `namespaces`) writes into that namespace's own `domains/` and `history/`, never into the default tree.
 
 ## Step 3: Extract candidates
 
@@ -56,14 +56,15 @@ Grep the target domain file, its area file, `global.md` and the domain's history
 
 ## Step 5: ONE numbered proposal
 
-First, snapshot before-counts (history line counts, headings per domain file, file sizes) and compute each target file's size AFTER the proposed writes. If a domain would exceed its budget, the proposal itself must include what moves to history (retire the oldest ticket-specific or narrative-only entries first, never pinned or rule-bearing ones; moved entries keep their full text in `## Superseded decisions` or a `## Retired` list in the history file, marked, never deleted). Then show a single numbered list: each candidate with its class, target file, pin flag and triggers, plus any such moves and any memory writes. The user answers "all" (which approves every numbered item, including budget moves and memory writes) or the numbers to change. Do not write before this answer. A proposal touching `CLAUDE.md` or any file in a shared repo shows the diff and needs its own confirmation; first verify whether it is gitignored. Standing rules are also written to the memory directory of the current project (a `feedback_<slug>.md` file with name/description/type frontmatter, a **Why:** and **How to apply:** line, plus one line in `MEMORY.md`; duplicate-checked) so they survive on the machine too.
+First, snapshot before-counts (history line counts, headings per domain file, file sizes) and compute each target file's size AFTER the proposed writes. If a domain would exceed its budget, the proposal itself must include what moves to history (retire the oldest ticket-specific or narrative-only entries first, never pinned or rule-bearing ones; moved entries keep their full text in `## Superseded decisions` or a `## Retired` list in the history file, marked, never deleted). Then show a single numbered list: each candidate with its class, target file, pin flag and triggers, plus any such moves and any memory writes. The user answers "all" (which approves every numbered item, including budget moves and memory writes) or the numbers to change. Do not write before this answer. A proposal touching a file inside a code repo (for example its `CLAUDE.md`): first verify whether that file is gitignored. If it is (private), it is written like any other item once the batch is confirmed; if it is tracked or shared, show the diff and ask for its own confirmation. Standing rules are also written to `<memoryDir>/<project-slug>/memory/` (project-slug = the working directory path with colons, slashes, backslashes and spaces replaced by '-', Claude Code's own convention; if that directory does not exist, skip the memory write and say so) (a `feedback_<slug>.md` file with name/description/type frontmatter, a **Why:** and **How to apply:** line, plus one line in `MEMORY.md`; duplicate-checked) so they survive on the machine too.
 
 ## Step 6: Write
 
+- **Lock**: if `state/.write.lock` exists and is younger than 10 minutes, wait or ask the user; create it before writing and remove it afterwards (the workflows use the same file).
 - **Status**: replaced, never appended: update BOTH the frontmatter `status:` (short, at most ~120 characters, a state not a log) and the `## 2. Status` line, and `as-of`.
 - **Open items**: check off finished ones with a date (`[x] ... (2026-10-27)`); add new ones with an as-of date.
 - **Live decisions**: append with the next free ID (highest ID across live and history, plus one). IDs are permanent and never reused.
-- **Standing rules**: next `R-` ID. A pinned rule goes at the end of the pinned section (just above `## Global notes`); an unpinned tool/environment note goes at the end of the file. The pinned section stays under about 8,000 characters (move the least critical to notes if it would not).
+- **Standing rules**: next `R-` ID. A pinned rule goes at the end of the pinned section (just above `## Global notes`); an unpinned tool/environment note goes at the end of the file. The pinned rule lines (the lines the loader reads) stay under about 4,500 characters in total and each rule line under about 400; if they would not, move the least critical rule to the notes.
 - **History**: append one block, oldest first, to `history/<primary domain>.md`:
   ```
   ### Session: <YYYY-MM-DD HH:MM> — <topic>

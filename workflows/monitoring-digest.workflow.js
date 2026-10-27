@@ -89,8 +89,8 @@ Return a structured summary, not prose.`,
       }
     )
     // Never trust an agent-echoed repo identifier for the completeness check below - it may
-    // format it differently than config.json's bare name (e.g. "Miswag/trendy-web" vs.
-    // "trendy-web"), which would make every repo look "missing" despite real data being
+    // format it differently than config.json's bare name (e.g. "my-org/my-repo" vs.
+    // "my-repo"), which would make every repo look "missing" despite real data being
     // gathered. Always attach identity from the script's own known repo list instead.
     return result ? { ...result, repo: repo.name } : null
   })
