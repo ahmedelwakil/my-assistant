@@ -29,7 +29,7 @@ Check if `dataDir` is already known this session. If not: check for a pointer fi
   "Where should your my-assistant data directory live?"
 
   Once answered, in this order:
-  1. Create that directory (`dataDir`) if it doesn't exist yet, along with its full structure: `index.md` (a skeleton), `domains/global.md`, `domains/`, `history/`, `projects/`, `state/` (with a starter `kill-switch.json` — `{"global_enabled": true, "repos": {}, "budgets": {"perRunTokens": 2000000, "dailyAggregateTokens": 20000000}}`), `diffs/`.
+  1. Create that directory (`dataDir`) if it doesn't exist yet, along with its full structure: `index.md` (a skeleton), `domains/global.md`, `domains/`, `history/`, `state/` (with a starter `kill-switch.json` — `{"global_enabled": true, "repos": {}, "budgets": {"perRunTokens": 2000000, "dailyAggregateTokens": 20000000}}`), `diffs/`.
   2. Resolve the rest automatically, without asking: `memoryDir` → `~/.claude/projects`; `projectDirs` → `[~/claude workspace, ~/Workspace]`.
   3. Write `dataDir`, `memoryDir`, and `projectDirs` into `<dataDir>/config.json`.
   4. Create `~/.claude/my-assistant/config-location` containing `{ "configPath": "<dataDir>/config.json" }`.

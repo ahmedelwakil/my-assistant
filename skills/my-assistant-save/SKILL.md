@@ -16,7 +16,7 @@ Save this session's knowledge so that a later `/my-assistant` load finds it with
   domains/<name>.md     one per project/topic: sections 1-6 below, always read in full on deep load
   domains/<area>.area.md  optional: rules shared by several domains of one area
   history/<name>.md     session blocks, oldest first, searched, never bulk-read
-  base-knowledge.md     frozen legacy ledger (read-only, search only)
+  history/<name>.notes.md  legacy per-project notes, verbatim (read-only: never write to a *.notes.md file)
 ```
 
 Domain file layout (keep the headings exactly): frontmatter (`domain`, `area`, `lifecycle` active|paused|archived, `namespace`, `sensitive`, `status` = one line of at most ~120 characters that the picker greps, `as-of`, optional `live-sources`), then `## 1. Context`, `## 2. Status` (ONE line), `## 3. Live decisions`, `## 4. Open items`, `## 5. Conventions and gotchas`, `## 6. Pointers and history`.
@@ -79,6 +79,7 @@ First, snapshot before-counts (history line counts, headings per domain file, fi
 1. History line counts only grew; no section heading vanished from any domain file.
 2. Each domain file is within budget (about 8-12 KB, 2,000-3,000 tokens; the largest active domains may reach about 14 KB). If a write would exceed it, **stop and propose what to move to history first**; do not trim silently. A domain past about 100 live decisions triggers a consolidation proposal (merge, retire to history) that the user confirms.
 3. IDs unique; triggers present on every decision (add synonyms).
-4. Report per file: what was added, what was superseded, what was skipped as already known, and anything awaiting confirmation.
+4. Layout integrity: no `*.notes.md` file changed; every domain file still has its frontmatter (including `status:`) and all six sections; every `src:` points at a memory file, a `history/` file, a repo doc or a user instruction, never at a path outside this layout; nothing new was written outside `domains/`, `history/`, `state/` and the memory directory.
+5. Report per file: what was added, what was superseded, what was skipped as already known, and anything awaiting confirmation.
 
 If the user later says "as I told you" about something missing, ask which decision it was, fix its triggers or synonyms, and note the miss in `state/miss-log.md`.

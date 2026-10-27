@@ -27,7 +27,7 @@ Every `/my-assistant` session loads, and every technical-task workflow reads:
 
 1. **`CLAUDE.md`** (each project's own root, if present) — architecture, commands, codebase conventions. Auto-loaded by Claude Code for interactive sessions; explicitly read by the automated workflow pipeline below, since that behavior doesn't extend to spawned subagents.
 2. **Memory files** (`~/.claude/projects/*/memory/*.md`) — structured notes Claude Code maintains per project directory: settled decisions, resolved investigations, standing feedback, accumulated organically over time.
-3. **Domain files** (`<dataDir>/domains/*.md`, plus `global.md` for standing rules) — compact, ordered decisions with triggers, open items and one-line status, grown by `/my-assistant-save`. Session narrative lives in `history/<domain>.md` and is searched, not bulk-read. The old single ledger `base-knowledge.md` is a frozen legacy archive.
+3. **Domain files** (`<dataDir>/domains/*.md`, plus `global.md` for standing rules) — compact, ordered decisions with triggers, open items and one-line status, grown by `/my-assistant-save`. Session narrative lives in `history/<domain>.md` and is searched, not bulk-read. Older per-project notes live next to it as `history/<domain>.notes.md` (verbatim, read-only).
 4. **Project structure** — a minimal scan of your project directories (file names only, no content reads).
 
 If you're also running the automated-workflow pipeline (below) against specific repos, two more files sit alongside these per repo: a thin cross-cutting index and a per-project knowledge file, kept current by the workflows themselves rather than only by manual saves.
@@ -36,7 +36,7 @@ If you're also running the automated-workflow pipeline (below) against specific 
 
 None of the four skills has a hardcoded default path. A fixed pointer file at `~/.claude/my-assistant/config-location` tells every skill where your real config lives. The very first time you run *any* of the four skills on a machine, that pointer doesn't exist yet — so it asks exactly one open-ended question ("where should your data directory live?"), then in one shot:
 
-- creates the full data directory structure there (`base-knowledge.md`, `index.md`, `projects/`, `state/`, `diffs/`)
+- creates the full data directory structure there (`index.md`, `domains/`, `history/`, `state/`, `diffs/`)
 - resolves everything else it can (memory files dir, project scan dirs, session-transcripts dir) from documented conventions, without asking
 - writes it all into `<dataDir>/config.json`
 - writes the pointer at `~/.claude/my-assistant/config-location`
@@ -119,10 +119,8 @@ Knowledge, runtime state, and this deployment's own configuration all live in a 
 │   ├── <name>.md              — one per project/topic: context, status, decisions, open items
 │   └── <area>.area.md         — optional: rules shared by the domains of one area
 ├── history/
-│   └── <name>.md              — session blocks, oldest first, searched not bulk-read
-├── base-knowledge.md          — frozen legacy ledger (read-only, search only)
-├── projects/
-│   └── <project-name>.md      — legacy per-project narrative (kept; new facts go to domains/)
+│   ├── <name>.md              — session blocks, oldest first, searched not bulk-read
+│   └── <name>.notes.md        — legacy per-project notes, verbatim (read-only)
 ├── state/
 │   ├── routine-state.json     — per-platform, per-repo checkpoints
 │   ├── kill-switch.json       — global + per-repo enable/disable

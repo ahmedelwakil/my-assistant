@@ -19,8 +19,12 @@ const A = typeof args === 'string' ? JSON.parse(args) : args
 //   maxTokens (per-run budget ceiling, from kill-switch/config - optional)
 // }
 
-const PROJECTS_DIR = 'C:\\Users\\PC\\claude workspace\\my-assistant\\projects'
-const INDEX_PATH = 'C:\\Users\\PC\\claude workspace\\my-assistant\\index.md'
+// The data directory is user-chosen and passed in by the dispatcher (config.dataDir); never hardcoded here.
+if (!A.dataDir) throw new Error('args.dataDir is required (the dispatcher passes config.dataDir)')
+const DOMAINS_DIR = `${A.dataDir}\domains`
+const HISTORY_DIR = `${A.dataDir}\history`
+const GLOBAL_PATH = `${DOMAINS_DIR}\global.md`
+const PENDING_MD_PATH = `${A.dataDir}\state\pending-approvals.md`
 
 // tasksRemaining: how many Execute tasks are left AFTER the one just completed.
 // When called with 0 (the plan is fully done, nothing left to run), grant a 25%
@@ -39,17 +43,19 @@ function overBudget(tasksRemaining) {
 // investigations, feedback) without maintaining a manual mapping. Silently absent
 // for repos with no prior interactive session there - that's expected, not an error.
 function claudeMemoryIndexPath(projectPath) {
-  return `C:\\Users\\PC\\.claude\\projects\\${projectPath.replace(/[:\\/ ]/g, '-')}\\memory\\MEMORY.md`
+  return `~/.claude/projects/${projectPath.replace(/[:\\/ ]/g, '-')}/memory/MEMORY.md (resolve "~" to the home directory)`
 }
 
 function orientationContext() {
   return `Before anything else, read these four for orientation - attempt all of them; if one genuinely doesn't exist, note that and move on immediately, it's not a blocker:
 1. ${A.projectPath}\\CLAUDE.md - this repo's architecture/commands. Despite living in the repo root, it is NOT automatically in your context here - you must actually read it yourself.
-2. ${INDEX_PATH} - cross-cutting shared dev guidelines and standing preferences
-3. ${PROJECTS_DIR}\\${A.repo}.md - stack, conventions, known gotchas
+2. ${GLOBAL_PATH} - standing rules: read it down to the "## Global notes" heading (the notes below it are tool gotchas, found later by Grep)
+3. ${DOMAINS_DIR}\\${A.repo}.md - this repo's domain file (context, live decisions with triggers, open items, conventions and gotchas), plus the area file named by its frontmatter "area:" (${DOMAINS_DIR}\\<area>.area.md) if that exists
 4. ${claudeMemoryIndexPath(A.projectPath)} - this repo's own accumulated session memory (settled decisions, resolved investigations, standing feedback); skip silently if it doesn't exist
 
-Treat all four as a starting point to verify against current code, never as ground truth on their own - and treat any infra/deploy-specific claim in CLAUDE.md with a little more suspicion than architectural ones, since nothing currently keeps it in sync automatically when infra changes (e.g. a deploy-target migration).`
+Treat all four as a starting point to verify against current code, never as ground truth on their own - and treat any infra/deploy-specific claim in CLAUDE.md with a little more suspicion than architectural ones, since nothing currently keeps it in sync automatically when infra changes (e.g. a deploy-target migration).
+
+Then, before planning, run a sweep: Grep the domain file, the area file and ${GLOBAL_PATH} for the triggers of the files, tickets and systems this task will touch, and carry every match into your plan. Never put any Claude/AI attribution in a commit message or PR body.`
 }
 
 phase('Setup')
@@ -386,8 +392,8 @@ PR: ${finished.prUrl}
 Classify anything worth remembering from this run and write it directly to the correct file below - no confirmation needed, all three are private (CLAUDE.md is gitignored in this repo, never shared):
 
 1. ${A.projectPath}\\CLAUDE.md - durable facts about how the CODEBASE actually works: a design invariant, an architecture/mechanism detail you discovered (e.g. "X only works via Y, not Z"), or a correction to something CLAUDE.md currently states wrong or stale. This is the kind of fact that would help any engineer or agent understand this codebase - not specific to this automation.
-2. ${PROJECTS_DIR}\\${A.repo}.md - process/ops facts specific to working on this repo within this framework: a new gotcha, an infra-migration status change, a convention not yet captured. Do NOT duplicate anything now correctly covered by CLAUDE.md.
-3. ${INDEX_PATH} - only if something genuinely cross-cutting came up (a standing preference, a shared convention change) - rare for a single task; most learnings belong in #2 instead.
+2. ${DOMAINS_DIR}\\${A.repo}.md - this repo's domain file. Add a new live decision as a "D-nnn" entry (next free ID across the file and its history; format: the rule, then a line "triggers: a, b, c | decided: date (ref)", then a line "why: one clause | src: where it came from"), a new open item, or a convention/gotcha under section 5. Replace the one-line Status (frontmatter "status:", at most 120 characters, and the "## 2. Status" line) only if it changed. Never rewrite or delete an existing entry: to supersede one, add the new entry and move the old entry's full text to ${HISTORY_DIR}\\${A.repo}.md under a "## Superseded decisions" heading at the end of that file. Also append one dated session block ("### Session: date time - topic" with Done / Decided / Open / Context) to ${HISTORY_DIR}\\${A.repo}.md, before that heading if the file has one (create the file if it does not exist). If the domain file would grow past about 12 KB, do not trim it: say so in your report. Do NOT duplicate anything now correctly covered by CLAUDE.md.
+3. ${GLOBAL_PATH} - only if a genuinely cross-cutting, project-independent standing rule came up (rare): append it as an unpinned note at the end of the file with the next free R- number, after checking it is not already there. Most learnings belong in #2 instead.
 
 Before writing to any file, read its current content first and do not re-save anything already captured - only append genuinely new information, matching each file's existing style and section structure (fold into the right section, don't just tack on a dated log entry). If nothing from this run is actually new or worth keeping in a given file, don't touch that file - it's fine to update zero, one, two, or three files depending on what's genuinely new.
 
@@ -399,11 +405,11 @@ Report which file(s) you updated and a one-line summary of what was added to eac
       type: 'object',
       properties: {
         claudeMdUpdated: { type: 'boolean' },
-        projectsFileUpdated: { type: 'boolean' },
-        indexUpdated: { type: 'boolean' },
+        domainFileUpdated: { type: 'boolean' },
+        globalRulesUpdated: { type: 'boolean' },
         summary: { type: 'string' },
       },
-      required: ['claudeMdUpdated', 'projectsFileUpdated', 'indexUpdated', 'summary'],
+      required: ['claudeMdUpdated', 'domainFileUpdated', 'globalRulesUpdated', 'summary'],
     },
   }
 )

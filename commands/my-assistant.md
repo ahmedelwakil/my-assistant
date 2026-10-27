@@ -15,7 +15,7 @@ Check for `~/.claude/my-assistant/config-location` (resolve `~` to the home dire
 
 - **Exists**: read `configPath`, then that file. Use `dataDir`, `memoryDir`, `projectDirs` directly; never ask about anything already there.
 - **Missing** (first run on this machine): ask exactly one open question, with no suggested default: "Where should your my-assistant data directory live?" Then:
-  1. Create `dataDir` with: `index.md` (skeleton), `domains/global.md` (empty rules list), `domains/`, `history/`, `projects/`, `state/`.
+  1. Create `dataDir` with: `index.md` (skeleton), `domains/global.md` (empty rules list), `domains/`, `history/`, `state/`.
   2. Resolve without asking: `memoryDir` → `~/.claude/projects`; `projectDirs` → `[~/claude workspace, ~/Workspace]`.
   3. Write them into `<dataDir>/config.json`, and `{ "configPath": "<dataDir>/config.json" }` into the pointer file.
   4. Tell the user plainly what was set up. Offer `/my-assistant-save` as the way knowledge gets in.
@@ -27,7 +27,7 @@ If the user changes a stored value during a session, update `config.json` immedi
 1. Read `<dataDir>/index.md` (thin: layout, pointers, shared notes).
 2. Read `<dataDir>/domains/global.md` down to the `## Global notes` heading (the pinned `R-` standing rules, about 2,000 tokens). Obey them for the whole session. The notes below that heading are tool and environment gotchas: do not load them; Grep them by trigger in the sweep (Step 6).
 3. Do not bulk-read memory files. The memory index is already in your context; open a memory file only when an entry's `src:` or a trigger points to it.
-4. Do not read `base-knowledge.md` or anything under `history/`. They are archives, reached only through search (Step 6).
+4. Do not read anything under `history/` (session blocks in `<name>.md`, the old per-project notes in `<name>.notes.md`). They are reached only through search (Step 6) and are never edited.
 
 ## Step 3: Build the picker (measured: about 1,250 tokens for 16 domains)
 
@@ -55,7 +55,7 @@ Run exactly ONE Grep: pattern `^(domain|area|lifecycle|sensitive|status):`, path
 
 ## Step 6: During the session
 
-- **Sweep before acting.** Before writing a plan, and before any external or irreversible action (push, PR, ticket, message, deploy, delete), Grep the loaded domain, its area file and `global.md` for triggers matching the files, classes, tickets and systems you are about to touch. Read from disk, not from memory of what you loaded. If nothing matches in the domain file, Grep `history/<domain>.md` as a fallback, and search with SEVERAL keyword variants (the thing, its synonyms, role words such as "contact", "engineer", "owner", names, ticket IDs), not one term. If a fact you needed was found only in history, tell the user and offer to promote it into the domain file at the next save.
+- **Sweep before acting.** Before writing a plan, and before any external or irreversible action (push, PR, ticket, message, deploy, delete), Grep the loaded domain, its area file and `global.md` for triggers matching the files, classes, tickets and systems you are about to touch. Read from disk, not from memory of what you loaded. If nothing matches in the domain file, Grep `history/<domain>*.md` (session blocks and notes) as a fallback, and search with SEVERAL keyword variants (the thing, its synonyms, role words such as "contact", "engineer", "owner", names, ticket IDs), not one term. Each `history/<name>.notes.md` starts with a Contents list (`L<line>: <section title>`): Grep that first with `-n`, then Read from the listed line with an offset and limit. The Grep tool shows very long lines as "[Omitted long matching line]"; when you see that, Read that line range instead of searching again. If a fact you needed was found only in history, tell the user and offer to promote it into the domain file at the next save.
 - **Show the line only on a match**: `Sweep: D-014 (metadata is []), R-004 (no AI attribution)`. Put matches into the plan and into every subagent prompt you write; subagents have no session history.
 - **Context loss.** If you cannot recall the pinned rules or the active domain (after compaction, a long session, or a doubt), re-read the pinned part of `global.md` and `state/active-session.json` and the domain file before continuing.
 - **Misses.** If the user says "as I told you", "we already decided", or corrects you on something that should have been known, find the decision (Grep domain, then history), apply it, and tell the user which trigger or synonym failed so it can be fixed at the next save.

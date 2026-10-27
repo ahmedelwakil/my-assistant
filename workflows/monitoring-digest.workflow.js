@@ -53,7 +53,7 @@ const config = await agent(
 )
 
 const REPOS = config.repos
-const KNOWLEDGE_INDEX_PATH = `${config.dataDir}\\index.md`
+const DIGEST_PATH = `${config.dataDir}\\state\\monitoring-digest.md`
 
 phase('Gather')
 const perRepo = await parallel(
@@ -132,7 +132,7 @@ ${missingRepos.length > 0 ? `NOTE: this run could not gather data for: ${missing
 ${anyQueryErrors ? `NOTE: some queries errored - list them plainly rather than omitting them.` : ''}
 
 1. Send this digest as a ${config.notify.platform} DM to ${config.notify.userName}.
-2. Update the "Recent Monitoring Digest rollups" section of ${KNOWLEDGE_INDEX_PATH} - replace its placeholder/previous content with this digest and today's date, keeping only the single most recent rollup (this is a thin index file, not a log).
+2. Overwrite ${DIGEST_PATH} with this digest and today's date, keeping only the single most recent rollup (it is a latest-state file, not a log).
 
 Return the Slack message link.`,
   {

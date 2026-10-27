@@ -1,7 +1,7 @@
 export const meta = {
   name: 'resume-approved-plan',
   description: 'Resume a paused Feature/Refactor plan (from state/pending-approvals.json) into Execute, with proper repo-lock acquire/release around the mutating phase',
-  whenToUse: 'Invoked manually by the user after reviewing a "Pending Execution Approval" entry in index.md and deciding to proceed - args: { ticketId, repo }',
+  whenToUse: 'Invoked manually by the user after reviewing a "Pending Execution Approval" entry in state/pending-approvals.md and deciding to proceed - args: { ticketId, repo }',
   phases: [
     { title: 'Load Config' },
     { title: 'Load' },
@@ -155,6 +155,7 @@ phase('Execute (resumed)')
 const dispatchArgs = {
   repo: A.repo,
   projectPath: entry.projectPath,
+  dataDir: config.dataDir,
   ticketId: A.ticketId,
   gitBranchName: entry.gitBranchName,
   taskDescription: entry.planSummary,
