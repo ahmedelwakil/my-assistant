@@ -14,3 +14,6 @@ desktop.ini
 
 # private word list for the privacy check (never committed)
 scripts/verify/deny.txt
+
+__pycache__/
+*.pyc
