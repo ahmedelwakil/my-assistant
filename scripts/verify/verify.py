@@ -102,6 +102,11 @@ def check_structure(a):
         ok("%s: status <= 130 chars" % name, len(st) <= 130, "%d" % len(st))
         ids = re.findall(r"(?m)^- (D-\d+)", t)
         ok("%s: unique decision ids" % name, len(ids) == len(set(ids)))
+        m5 = re.search(r"(?ms)^## 5\..*?(?=^## 6\.|\Z)", t)
+        gblocks = re.split(r"(?m)^(?=- G-\d+)", m5.group(0))[1:] if m5 else []
+        gids = [b.split(" ", 2)[1] for b in gblocks]
+        gbad = [b.split(" ", 2)[1] for b in gblocks if "triggers:" not in b]
+        ok("%s: gotcha ids unique, each with triggers (%d gotchas)" % (name, len(gids)), len(gids) == len(set(gids)) and not gbad, str(gbad) if gbad else "")
         undated = [l[:50] for l in open_items(t) if not re.search(r"\d{4}-\d{2}-\d{2}", l)]
         ok("%s: every open item carries a date" % name, not undated, "%d undated" % len(undated) if undated else "")
         long_titles = [l.split("\n")[0][:50] for l in open_items(t) if len(l.split("\n")[0]) > 320]
@@ -126,7 +131,7 @@ def check_structure(a):
         ok("global.md: has the Global notes heading", "## Global notes" in gt)
         lines = re.findall(r"(?m)^- R-\d+ \[pin\] .*$", gt)
         total = sum(len(x) + 1 for x in lines)
-        ok("global.md: pinned rule lines under ~4,500 chars", total <= 4600, "%d chars, %d rules" % (total, len(lines)))
+        ok("global.md: pinned rule lines under ~5,500 chars", total <= 5600, "%d chars, %d rules" % (total, len(lines)))
 
 
 def check_sources(a):

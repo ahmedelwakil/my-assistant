@@ -32,7 +32,7 @@ import re
 import sqlite3
 import sys
 
-ENTRY = re.compile(r'^- ((?:D|A)-\d+)\s*(\[pin\])?\s*(.*)$')
+ENTRY = re.compile(r'^- ((?:D|A|G)-\d+)\s*(\[pin\])?\s*(.*)$')
 STOP = set('the a an and or of to in on for with is are be this that it as at by from not no do does did we you i my your our if then else when how what why which can should would could will just also than so but into out up'.split())
 
 
@@ -180,6 +180,10 @@ def run_strategy(name, prompt, decs, pins, db, k):
         return set(pins) | trigger_hits(prompt, decs)
     if name == 'fts':
         return set(pins) | fts_hits(db, prompt, k)
+    if name == 'ftsx':  # decisions and gotchas searched as two separate lists
+        dd = [d for d in decs if not d['id'].startswith('G-')]
+        gg = [d for d in decs if d['id'].startswith('G-')]
+        return set(pins) | fts_hits(build_fts(dd), prompt, k) | (fts_hits(build_fts(gg), prompt, k) if gg else set())
     if name == 'both':
         return set(pins) | trigger_hits(prompt, decs) | fts_hits(db, prompt, k)
     if name == 'all':
@@ -195,7 +199,7 @@ def cmd_score(a):
         for g in json.load(open(gp, encoding='utf-8')):
             ids = list(g['sure']) + (list(g.get('maybe', [])) if a.lenient else [])
             gold.append({'id': g['id'], 'prompt': qs[g['id']]['prompt'], 'domain': qs[g['id']]['domain'], 'gold': ids})
-    strategies = ['pins', 'triggers', 'fts', 'both', 'all'] + a.variants
+    strategies = ['pins', 'triggers', 'fts', 'ftsx', 'both', 'all'] + a.variants
     fetched = {}
     for fp in a.fetch or []:
         fetched.update(json.load(open(fp, encoding='utf-8')))

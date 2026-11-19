@@ -99,7 +99,7 @@ class T(unittest.TestCase):
         self.assertFalse(err)
         self.assertIn('detail: more words here.', text)
         err, text = self.c.call('search', domain='x', prompt='tell me about gamma')
-        self.assertEqual(json.loads(text), {'ids': ['D-002']})
+        self.assertEqual(json.loads(text), {'ids': ['D-002'], 'gotchas': []})
         err, text = self.c.call('validate', domain='x')
         self.assertEqual(json.loads(text), {'problems': []})
 

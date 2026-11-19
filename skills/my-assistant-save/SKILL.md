@@ -29,6 +29,13 @@ Decision entry (about 60 tokens):
 ```
 Standing rule in `global.md`: `R-007 <rule>. | triggers: ... | why: ... | src: ...`.
 
+Gotcha entry (in `## 5`):
+```
+- G-012 <short title: what it is and when it applies>
+  triggers: worktree, .env, composer | noted: 2026-11-03
+  detail: <the full text, verbatim>
+```
+
 A non-pinned decision whose rule runs past about 240 characters keeps a short rule on its first line and the rest on a `  detail:` line directly below it (pinned decisions stay on one line, because the loader reads pins from their first line). An open item is one short title line (at most 320 characters, ending with `(as of YYYY-MM-DD)`); narrative and later news go under it as indented dated lines, `  - 2026-11-19: ...`, and are never appended to the title.
 
 ## Step 1: Load configuration
@@ -56,7 +63,7 @@ Review the whole session. Scan for decision language ("we agreed", "from now on"
   - **A fact the user states that contradicts live state** (for example "PR #71 was merged" while GitHub shows it open): do NOT record it as true and do NOT mark the item done. Record it as user-reported with today's date, show both in the report, and do not ask.
 - **Status** (one line), **conventions and gotchas**, and the **history block**.
 - **Pin** a scoped decision only if missing it would cause real harm in most sessions of that domain (a gate before a PR, a never-do, a convention that reviewers check). Keep pins to about 5-8 per domain.
-- **A note is not a fourth class**: a gotcha with no rule in it goes to `## 5. Conventions and gotchas`; ticket narrative goes to the history block only.
+- **A gotcha is not a decision**: a lesson, recipe, tool quirk or verified fact with no rule in it goes to `## 5. Conventions and gotchas` as a `G-` entry: a short title (what it is and when it applies, at most 200 characters), a `  triggers:` line directly under it (so one `Grep -A 1` returns title and triggers) and the full text on a `  detail:` line (`add_gotcha`). Ticket narrative goes to the history block only.
 - **Uncertain class**: do not ask. Write it as a line in the history block only (the safe default) and name it in the report with the class you would have suggested, so the user can say "make it a rule".
 - **User-stated facts** ("PR merged", "issue resolved"): verify live when it is cheap; otherwise save them marked as user-reported with the date.
 
@@ -70,13 +77,13 @@ Snapshot before-counts (history line counts, headings per domain file, file size
 
 ## Step 6: Write
 
-- **Typed tools first**: when the `my-assistant-store` MCP tools (`add_decision`, `supersede_decision`, `add_item`, `update_item`, `complete_item`, `set_status`, `add_history_block`, `list_open`, `next_id`, `validate`, `search`, `get_decision`; named `mcp__my-assistant-store__<tool>`, load them with ToolSearch if they are deferred) are available, use them for every write below: they take the lock, re-read the file, allocate ids, validate the entry, back the file up and change only the targeted lines. A refusal tells you what to fix (add triggers, shorten the rule into a `detail`); do not bypass the tool. If the tools are not available, follow the manual steps below. Call `validate` for each domain touched when done.
+- **Typed tools first**: when the `my-assistant-store` MCP tools (`add_decision`, `add_gotcha`, `fix_decision`, `supersede_decision`, `add_item`, `update_item`, `complete_item`, `set_status`, `add_history_block`, `list_open`, `next_id`, `validate`, `search`, `get_decision`; named `mcp__my-assistant-store__<tool>`, load them with ToolSearch if they are deferred) are available, use them for every write below: they take the lock, re-read the file, allocate ids, validate the entry, back the file up and change only the targeted lines. A refusal tells you what to fix (add triggers, shorten the rule into a `detail`); do not bypass the tool. If the tools are not available, follow the manual steps below. Call `validate` for each domain touched when done.
 - **Re-read** each target file immediately before writing it: other sessions write the same files, so edit and allocate IDs from the file as it is at that moment.
 - **Lock**: if `state/.write.lock` exists and is younger than 10 minutes, wait or ask the user; create it before writing and remove it afterwards (the workflows use the same file).
 - **Status**: replaced, never appended: update BOTH the frontmatter `status:` (short, at most ~120 characters, a state not a log) and the `## 2. Status` line, and `as-of`.
 - **Open items**: for each verdict: still open and re-checked today means update its `(as of ...)` date; done means `[x] ... (date)`; dropped means `[x] dropped: reason (date)`. Move `[x]` items whose done date is before today out of the domain file into the history block's **Done** line (nothing is deleted, they just stop crowding the live list). Add new items with an as-of date.
 - **Live decisions**: append with the next free ID: the highest ID among entries that START a line (`- D-nnn`) in the live file and in the `## Superseded decisions` / `## Retired decisions` sections of its history file, plus one. Never read IDs from other text in history or notes files (that text contains stray look-alikes). IDs are permanent and never reused.
-- **Standing rules**: next `R-` ID (same counting rule, over `global.md` only). A pinned rule goes at the end of the pinned section (just above `## Global notes`); an unpinned tool/environment note goes at the end of the file. The pinned rule lines (the lines the loader reads) stay under about 4,500 characters in total and each rule line under about 400; if they would not, move the least critical rule to the notes.
+- **Standing rules**: next `R-` ID (same counting rule, over `global.md` only). A pinned rule goes at the end of the pinned section (just above `## Global notes`); an unpinned tool/environment note goes at the end of the file. The pinned rule lines (the lines the loader reads) stay under about 5,500 characters in total and each rule line under about 500 (accuracy comes before token cost, so raise nothing further without the user's decision); if they would not, move the least critical rule to the notes.
 - **History**: append one block, oldest first, to `history/<primary domain>.md`:
   ```
   ### Session: <YYYY-MM-DD HH:MM> — <topic>

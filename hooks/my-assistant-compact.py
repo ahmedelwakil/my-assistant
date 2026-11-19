@@ -6,12 +6,17 @@ domains/global.md) and the pinned D-/A- entries of the active domain, so the
 assistant keeps them without a re-read. Reads from disk only; never writes.
 It never fails the session: on any problem it prints a short hint instead.
 Output: SessionStart JSON on stdout, capped below the 10,000 character hook limit.
+
+The limit applies per hook, so a large store can register this script three times with
+--part global, --part area and --part domain; each part then has its own budget and every pin is restored.
+With no --part everything is printed in one piece (the original behaviour, truncated at the cap).
 Optional args: --domain <name> and --namespace <name> override state/active-session.json (testing).
 """
 import json, os, re, sys
 
 CAP = 9500
 NAME = re.compile(r"^[A-Za-z0-9._-]+$")
+PARTS = ("global", "area", "domain")
 
 
 def emit(text):
@@ -53,11 +58,21 @@ def decisions_section(text):
     return m.group(1) if m else text
 
 
+def clip(text, hint):
+    if len(text) > CAP:
+        text = text[: CAP - 80].rsplit("\n", 1)[0] + "\n[truncated: %s]" % hint
+    return text
+
+
 def main():
+    part = arg("--part")
+    if part is not None and part not in PARTS:
+        part = None
     try:
         dd, cfg = load_config()
     except Exception:
-        emit("my-assistant: could not read its config (~/.claude/my-assistant/config-location). Re-run /my-assistant to restore the standing rules.")
+        if part in (None, "global"):
+            emit("my-assistant: could not read its config (~/.claude/my-assistant/config-location). Re-run /my-assistant to restore the standing rules.")
         return
     domain = arg("--domain")
     ns = arg("--namespace")
@@ -74,9 +89,9 @@ def main():
         ns = None
 
     g = read(os.path.join(dd, "domains", "global.md")).split("## Global notes")[0]
-    parts = ["my-assistant context restored after compaction (from disk; re-read the files for full entries).",
-             "STANDING RULES (domains/global.md):"]
-    parts += ["- " + e for e in pinned_entries(g)]
+    sections = {"global": ["my-assistant context restored after compaction (from disk; re-read the files for full entries).",
+                           "STANDING RULES (domains/global.md):"] + ["- " + e for e in pinned_entries(g)],
+                "area": [], "domain": []}
     if domain:
         base = dd
         if ns:
@@ -85,23 +100,26 @@ def main():
         d = read(os.path.join(base, "domains", domain + ".md"))
         where = ("%s/" % ns if ns else "") + "domains/%s.md" % domain
         if d:
-            parts.append("ACTIVE DOMAIN: %s. Pinned decisions (%s):" % (domain, where))
-            parts += ["- " + e for e in pinned_entries(decisions_section(d))]
+            sections["domain"].append("ACTIVE DOMAIN: %s. Pinned decisions (%s):" % (domain, where))
+            sections["domain"] += ["- " + e for e in pinned_entries(decisions_section(d))]
             area = re.search(r"(?m)^area:\s*([A-Za-z0-9._-]+)", d)
             if area:
                 a = read(os.path.join(base, "domains", area.group(1) + ".area.md"))
                 if a:
-                    parts.append("AREA RULES (%s.area.md):" % area.group(1))
-                    parts += ["- " + e for e in pinned_entries(a)]
-            parts.append("Re-read %s (and its area file) before any plan or external action." % where)
+                    sections["area"].append("AREA RULES (%s.area.md):" % area.group(1))
+                    sections["area"] += ["- " + e for e in pinned_entries(a)]
+            sections["domain"].append("Re-read %s (and its area file) before any plan or external action." % where)
         else:
-            parts.append("Active domain %s was recorded but its file was not found; re-load it with /my-assistant." % domain)
+            sections["domain"].append("Active domain %s was recorded but its file was not found; re-load it with /my-assistant." % domain)
     else:
-        parts.append("No active domain recorded; if the session was about a project, re-load it with /my-assistant <domain>.")
-    text = "\n".join(parts)
-    if len(text) > CAP:
-        text = text[: CAP - 80].rsplit("\n", 1)[0] + "\n[truncated: re-read domains/global.md]"
-    emit(text)
+        sections["domain"].append("No active domain recorded; if the session was about a project, re-load it with /my-assistant <domain>.")
+
+    if part is None:
+        emit(clip("\n".join(sections["global"] + sections["domain"][:-1] + sections["area"] + sections["domain"][-1:]),
+                  "re-read domains/global.md"))
+        return
+    if sections[part]:
+        emit(clip("\n".join(sections[part]), "re-read the %s file" % ("global rules" if part == "global" else part)))
 
 
 if __name__ == "__main__":

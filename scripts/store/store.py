@@ -18,7 +18,7 @@ import sys
 import time
 
 ISO = re.compile(r'\d{4}-\d{2}-\d{2}')
-ENTRY = re.compile(r'^- ((?:D|A)-\d+)\b')
+ENTRY = re.compile(r'^- ((?:D|A|G)-\d+)\b')
 ITEM = re.compile(r'^- \[([ x])\] (.*)$')
 RULE_MAX = 320
 TITLE_MAX = 320
@@ -336,20 +336,86 @@ class Store:
             self.write(path, lines, nl)
         return {'ok': True}
 
+    def fix_decision(self, domain, id, triggers=None, src=None):
+        """Repair the metadata of a live decision without touching its rule text: replace its trigger words
+        (keeping its `| decided:` part) and/or set its src (replacing an existing one or appending it)."""
+        if triggers is None and src is None:
+            raise Refused('give triggers and/or src')
+        if triggers is not None and (not triggers or not all(isinstance(t, str) and t.strip() for t in triggers)):
+            raise Refused('triggers must be a non-empty list of words')
+        if src is not None and not src.strip():
+            raise Refused('src must not be empty')
+        with self.Lock(self):
+            path = self.dom(domain)
+            lines, nl = self.read(path)
+            s, e = self.section(lines, 3)
+            hit = [(a, b) for a, b in self.blocks(lines, s, e, ENTRY) if re.match(r'^- %s\b' % re.escape(id), lines[a])]
+            if len(hit) != 1:
+                raise Refused('decision %s not found as a live entry' % id)
+            a, b = hit[0]
+            why = next((i for i in range(a, b) if lines[i].startswith('  why:')), None)
+            if why is None:
+                raise Refused('decision %s has no why line' % id)
+            if triggers is not None:
+                words = ', '.join(t.strip() for t in triggers)
+                tl = next((i for i in range(a, b) if lines[i].startswith('  triggers:')), None)
+                if tl is None:
+                    lines.insert(why, '  triggers: %s | decided: %s' % (words, self.now()))
+                    why += 1
+                else:
+                    rest = lines[tl].split('|', 1)
+                    lines[tl] = '  triggers: %s%s' % (words, (' |' + rest[1]) if len(rest) > 1 else '')
+            if src is not None:
+                if '| src:' in lines[why]:
+                    lines[why] = lines[why].split('| src:')[0] + '| src: ' + src.strip()
+                else:
+                    lines[why] = lines[why].rstrip() + ' | src: ' + src.strip()
+            self.backup(path)
+            self.write(path, lines, nl)
+        return {'ok': True}
+
     def get_decision(self, domain, id):
-        """Return the full entry block (head, detail, triggers, why) of a live decision."""
+        """Return the full entry block (head, detail, triggers, why) of a live decision or gotcha."""
         lines, _ = self.read(self.dom(domain))
-        s, e = self.section(lines, 3)
-        for a, b in self.blocks(lines, s, e, ENTRY):
-            if re.match(r'^- %s\b' % re.escape(id), lines[a]):
-                return {'entry': '\n'.join(lines[a:b])}
-        raise Refused('decision %s not found as a live entry' % id)
+        for n in (3, 5):
+            s, e = self.section(lines, n)
+            for a, b in self.blocks(lines, s, e, ENTRY):
+                if re.match(r'^- %s\b' % re.escape(id), lines[a]):
+                    return {'entry': '\n'.join(lines[a:b])}
+        raise Refused('entry %s not found as a live decision or gotcha' % id)
+
+    def add_gotcha(self, domain, title, detail, triggers, noted=None):
+        """Add a gotcha (a lesson, recipe or fact with no rule in it) to section 5: a short title line,
+        the full text on a `detail:` line and trigger words. Allocates the next G- id."""
+        title, detail = (title or '').strip(), (detail or '').strip()
+        if not title or '\n' in title or len(title) > 200:
+            raise Refused('title is required, one line, at most 200 characters')
+        if not detail or '\n' in detail:
+            raise Refused('detail is required and must be one line')
+        if not triggers or not all(isinstance(t, str) and t.strip() for t in triggers):
+            raise Refused('at least one trigger word is required')
+        noted = noted or self.now()
+        self.check_date(noted, 'noted')
+        with self.Lock(self):
+            path = self.dom(domain)
+            lines, nl = self.read(path)
+            new_id = self.next_id(domain, 'G')
+            s, e = self.section(lines, 5)
+            at = self.last_nonblank(lines, s, e)
+            block = ['- %s %s' % (new_id, title),
+                     '  triggers: %s | noted: %s' % (', '.join(t.strip() for t in triggers), noted),
+                     '  detail: ' + detail]
+            self.backup(path)
+            lines[at:at] = block
+            self.write(path, lines, nl)
+        return {'id': new_id}
 
     def search(self, domain, prompt, k=3):
-        """Keyword search over the derived index of non-pinned entries (rebuilt each call, a few ms)."""
+        """Keyword search over the derived index of non-pinned entries (rebuilt each call, a few ms).
+        Decisions and gotchas are searched as two separate lists of up to k ids each."""
         idx = '%s/state/index.sqlite' % self.dir
         build_index(self.dir, idx)
-        return {'ids': search_index(idx, domain, prompt, k)}
+        return {'ids': search_index(idx, domain, prompt, k, 'decisions'), 'gotchas': search_index(idx, domain, prompt, k, 'gotchas')}
 
     def list_open(self, domain, limit=20):
         lines, _ = self.read(self.dom(domain))
@@ -382,6 +448,14 @@ class Store:
                 seen.add(i)
                 if '  triggers:' not in blk or '| src:' not in blk:
                     problems.append('%s lacks triggers or src' % i)
+            s, e = self.section(lines, 5)
+            for a, b in self.blocks(lines, s, e, ENTRY):
+                i = ENTRY.match(lines[a]).group(1)
+                if i in seen:
+                    problems.append('duplicate id %s' % i)
+                seen.add(i)
+                if '  triggers:' not in '\n'.join(lines[a:b]):
+                    problems.append('%s lacks triggers' % i)
             s, e = self.section(lines, 4)
             for a, b in self.blocks(lines, s, e, ITEM):
                 if lines[a].startswith('- [ ]') and not ISO.search('\n'.join(lines[a:b])):
@@ -410,22 +484,25 @@ def build_index(data_dir, out_path):
             continue
         lines, _ = Store.read(d + '/domains/' + path)
         try:
-            s, e = Store.section(lines, 3) if not path.endswith('.area.md') else (0, len(lines))
+            ranges = [(0, len(lines))] if path.endswith('.area.md') else [Store.section(lines, 3), Store.section(lines, 5)]
         except Refused:
             continue
-        for a, b in Store.blocks(lines, s, e, ENTRY):
-            m = re.match(r'^- ((?:D|A)-\d+)\s*(\[pin\])?\s*(.*)$', lines[a])
-            trig = next((l[len('  triggers:'):].split('|')[0].strip() for l in lines[a:b] if l.startswith('  triggers:')), '')
-            detail = ' '.join(l[len('  detail:'):].strip() for l in lines[a:b] if l.startswith('  detail:'))
-            db.execute("insert into f values (?,?,?,?,?)", (path[:-3], m.group(1), '1' if m.group(2) else '0', (m.group(3) + ' ' + detail).strip(), trig))
-            n += 1
+        for s, e in ranges:
+            for a, b in Store.blocks(lines, s, e, ENTRY):
+                m = re.match(r'^- ((?:D|A|G)-\d+)\s*(\[pin\])?\s*(.*)$', lines[a])
+                trig = next((l[len('  triggers:'):].split('|')[0].strip() for l in lines[a:b] if l.startswith('  triggers:')), '')
+                detail = ' '.join(l[len('  detail:'):].strip() for l in lines[a:b] if l.startswith('  detail:'))
+                db.execute("insert into f values (?,?,?,?,?)", (path[:-3], m.group(1), '1' if m.group(2) else '0', (m.group(3) + ' ' + detail).strip(), trig))
+                n += 1
     db.commit()
     db.close()
     os.replace(tmp, out_path)
     return n
 
 
-def search_index(index_path, file, prompt, k=3):
+def search_index(index_path, file, prompt, k=3, kind=None):
+    """Top-k ids for a prompt. kind: None (all), 'decisions' (D- and A- entries) or 'gotchas' (G- entries);
+    searching the kinds separately stops one kind from crowding out the other."""
     import sqlite3
     ws = sorted({w for w in re.findall(r'[a-z0-9_]+', prompt.lower()) if w not in STOP and len(w) > 1})
     if not ws:
@@ -433,7 +510,8 @@ def search_index(index_path, file, prompt, k=3):
     db = sqlite3.connect(index_path)
     try:
         q = ' OR '.join('"%s"' % w for w in ws)
-        rows = db.execute("select id from f where f match ? and file = ? and pin = '0' order by bm25(f) limit ?", (q, file, k)).fetchall()
+        cond = {'decisions': " and id not like 'G-%'", 'gotchas': " and id like 'G-%'"}.get(kind, '')
+        rows = db.execute("select id from f where f match ? and file = ? and pin = '0'" + cond + " order by bm25(f) limit ?", (q, file, k)).fetchall()
     finally:
         db.close()
     return [r[0] for r in rows]

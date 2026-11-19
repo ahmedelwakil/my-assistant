@@ -94,6 +94,46 @@ class T(unittest.TestCase):
         self.only_added(before, self.dom(), added)
         self.assertEqual(self.st.validate('x')['problems'], [])
 
+    def test_add_gotcha_allocates_g_ids_and_validates(self):
+        before = self.dom()
+        r = self.st.add_gotcha('x', 'Worktree setup that works', 'Create it from origin/main; copy .env.', ['worktree', '.env'])
+        self.assertEqual(r['id'], 'G-001')
+        added = ['- G-001 Worktree setup that works', '  triggers: worktree, .env | noted: 2026-11-19',
+                 '  detail: Create it from origin/main; copy .env.']
+        self.only_added(before, self.dom(), added)
+        self.assertEqual(self.st.add_gotcha('x', 'Second', 'More.', ['t'])['id'], 'G-002')
+        self.assertEqual(self.st.validate('x')['problems'], [])
+        self.assertIn('G-001', self.st.get_decision('x', 'G-001')['entry'])
+        for kw in (dict(title='', detail='d', triggers=['t']), dict(title='t' * 250, detail='d', triggers=['t']),
+                   dict(title='t', detail='', triggers=['t']), dict(title='t', detail='d', triggers=[])):
+            with self.assertRaises(Refused):
+                self.st.add_gotcha('x', **kw)
+
+    def test_fix_decision_changes_only_metadata(self):
+        before = self.dom()
+        self.st.fix_decision('x', 'D-002', triggers=['gamma', 'delta'], src='history/x.md (T-1)')
+        after = self.dom()
+        b, a = before.split('\n'), after.split('\n')
+        changed = [(x, y) for x, y in zip(b, a) if x != y]
+        self.assertEqual(len(b), len(a))
+        self.assertEqual(len(changed), 2)
+        self.assertIn('  triggers: gamma, delta | decided: 2026-01-02', after)
+        self.assertIn('  why: w | src: history/x.md (T-1)', after)
+        self.assertIn('- D-002 Second rule.\n  detail: more words here.', after)
+        with self.assertRaises(Refused):
+            self.st.fix_decision('x', 'D-002')
+        with self.assertRaises(Refused):
+            self.st.fix_decision('x', 'D-002', triggers=[])
+        with self.assertRaises(Refused):
+            self.st.fix_decision('x', 'D-999', src='s')
+
+    def test_fix_decision_adds_missing_src_and_missing_triggers(self):
+        text = self.dom().replace('  triggers: gamma | decided: 2026-01-02\n  why: w | src: user', '  why: w')
+        self.put('/domains/x.md', text)
+        self.assertTrue(self.st.validate('x')['problems'])
+        self.st.fix_decision('x', 'D-002', triggers=['gamma'], src='user 2026')
+        self.assertEqual(self.st.validate('x')['problems'], [])
+
     def test_refusals_leave_file_unchanged(self):
         before = self.dom()
         bad = [dict(text='', triggers=['a'], why='w', src='s'), dict(text='x' * 400, triggers=['a'], why='w', src='s'),
@@ -240,6 +280,11 @@ class IndexTests(unittest.TestCase):
         self.build()
         self.assertNotIn('D-002', self.find('gamma'))
         self.assertIn('D-004', self.find('gamma'))
+
+    def test_gotchas_are_indexed(self):
+        self.st.add_gotcha('x', 'Quarantine recipe for flaky jobs', 'Move the job to the slow queue.', ['quarantine'])
+        self.build()
+        self.assertEqual(self.find('how do I quarantine the flaky job'), ['G-001'])
 
     def test_deleting_the_index_loses_nothing(self):
         self.build()
