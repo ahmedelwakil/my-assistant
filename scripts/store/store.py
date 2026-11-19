@@ -208,8 +208,6 @@ class Store:
         text = (text or '').strip()
         if not text or '\n' in text:
             raise Refused('item text is required and must be one line')
-        if len(text) > TITLE_MAX:
-            raise Refused('item title is %d chars, keep it to %d and add a dated update line instead' % (len(text), TITLE_MAX))
         as_of = as_of or self.now()
         self.check_date(as_of, 'as_of')
         tail = ' (as of %s)' % as_of
@@ -218,6 +216,8 @@ class Store:
             tail += ' (due %s)' % due
         if check:
             tail += ' (check: %s)' % check
+        if len(text) + len(tail) > TITLE_MAX:
+            raise Refused('item title is %d chars with its date tags, keep it to %d and add a dated update line instead' % (len(text) + len(tail), TITLE_MAX))
         with self.Lock(self):
             path = self.dom(domain)
             lines, nl = self.read(path)
@@ -336,6 +336,21 @@ class Store:
             self.write(path, lines, nl)
         return {'ok': True}
 
+    def get_decision(self, domain, id):
+        """Return the full entry block (head, detail, triggers, why) of a live decision."""
+        lines, _ = self.read(self.dom(domain))
+        s, e = self.section(lines, 3)
+        for a, b in self.blocks(lines, s, e, ENTRY):
+            if re.match(r'^- %s\b' % re.escape(id), lines[a]):
+                return {'entry': '\n'.join(lines[a:b])}
+        raise Refused('decision %s not found as a live entry' % id)
+
+    def search(self, domain, prompt, k=3):
+        """Keyword search over the derived index of non-pinned entries (rebuilt each call, a few ms)."""
+        idx = '%s/state/index.sqlite' % self.dir
+        build_index(self.dir, idx)
+        return {'ids': search_index(idx, domain, prompt, k)}
+
     def list_open(self, domain, limit=20):
         lines, _ = self.read(self.dom(domain))
         s, e = self.section(lines, 4)
@@ -401,7 +416,8 @@ def build_index(data_dir, out_path):
         for a, b in Store.blocks(lines, s, e, ENTRY):
             m = re.match(r'^- ((?:D|A)-\d+)\s*(\[pin\])?\s*(.*)$', lines[a])
             trig = next((l[len('  triggers:'):].split('|')[0].strip() for l in lines[a:b] if l.startswith('  triggers:')), '')
-            db.execute("insert into f values (?,?,?,?,?)", (path[:-3], m.group(1), '1' if m.group(2) else '0', m.group(3), trig))
+            detail = ' '.join(l[len('  detail:'):].strip() for l in lines[a:b] if l.startswith('  detail:'))
+            db.execute("insert into f values (?,?,?,?,?)", (path[:-3], m.group(1), '1' if m.group(2) else '0', (m.group(3) + ' ' + detail).strip(), trig))
             n += 1
     db.commit()
     db.close()

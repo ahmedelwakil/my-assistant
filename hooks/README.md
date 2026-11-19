@@ -31,3 +31,19 @@ Test: `python -X utf8 hooks/my-assistant-compact.py --domain <name>` prints the 
 - If `python` is not on your PATH (some Windows installs only have the launcher), use `py -3 -X utf8 "<path-to-this-repo>/hooks/my-assistant-compact.py"` as the command.
 - The hook never fails a session: on a missing or broken config it prints a one-line hint telling you to re-run `/my-assistant`.
 - Test it: `python -X utf8 hooks/my-assistant-compact.py --domain <name> [--namespace <name>]`.
+
+## Pre-compaction hook (`my-assistant-precompact.py`)
+
+Runs before every compaction (manual and automatic). It copies the session transcript to a backup folder (one file per session, overwritten by each compaction, so the full text survives the summary) and prints instructions that Claude Code adds to the compaction summary: keep unsaved decisions, open items, pending approvals, the active domain and the ids and names in progress.
+
+It never blocks a compaction (it always exits 0; exit code 2 would block it), never raises, and cannot write outside its backup folder. The backup folder is `transcriptBackupDir` in `config.json`, default `<dataDir>/state/transcripts` (transcripts are large, tens of megabytes; point it at a folder with space).
+
+Add to the `hooks` section of `~/.claude/settings.json` (an explicit user decision, it edits that file):
+
+```json
+"PreCompact": [
+  { "hooks": [ { "type": "command", "command": "python -X utf8 \"<path-to-this-repo>/hooks/my-assistant-precompact.py\"" } ] }
+]
+```
+
+Test: `python -X utf8 hooks/test_precompact.py` (set `MA_BIG_TRANSCRIPT` to a large transcript to time the copy). The hook receives `session_id`, `transcript_path` and `trigger` on stdin.

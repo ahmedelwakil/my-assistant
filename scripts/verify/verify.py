@@ -68,9 +68,10 @@ def domain_files(dd):
 
 
 def open_items(text):
-    """Unchecked items (`- [ ]`) in the '## 4. Open items' section."""
+    """Unchecked items (`- [ ]`) in the '## 4. Open items' section, each as its title line plus any
+    indented continuation lines (dated update lines, `detail:`), joined by newlines."""
     m = re.search(r"(?ms)^## 4\. Open items\s*$(.*?)(?=^## 5\.|\Z)", text)
-    return re.findall(r"(?m)^- \[ \] .*$", m.group(1)) if m else []
+    return re.findall(r"(?m)^- \[ \] .*(?:\n  .*)*", m.group(1)) if m else []
 
 
 def frontmatter(text):
@@ -103,6 +104,8 @@ def check_structure(a):
         ok("%s: unique decision ids" % name, len(ids) == len(set(ids)))
         undated = [l[:50] for l in open_items(t) if not re.search(r"\d{4}-\d{2}-\d{2}", l)]
         ok("%s: every open item carries a date" % name, not undated, "%d undated" % len(undated) if undated else "")
+        long_titles = [l.split("\n")[0][:50] for l in open_items(t) if len(l.split("\n")[0]) > 320]
+        ok("%s: open item titles <= 320 chars (narrative goes in dated update lines)" % name, not long_titles, "%d too long" % len(long_titles) if long_titles else "")
         bad = []
         for e in re.split(r"(?m)^(?=- D-\d+)", t)[1:]:
             head = e.split("\n", 1)[0]
@@ -314,12 +317,12 @@ def check_open_items(a):
                 unver += 1
             if not ds:
                 undated += 1
-                rows.append((name, "UNDATED", l[:80]))
+                rows.append((name, "UNDATED", l.split("\n")[0][:80]))
                 continue
             age = (today - datetime.date.fromisoformat(max(ds))).days
             if age > 30:
                 o30 += 1
-                rows.append((name, "%dd" % age, l[:80]))
+                rows.append((name, "%dd" % age, l.split("\n")[0][:80]))
             if age > 90:
                 o90 += 1
     print("  %d open items: %d undated, %d older than 30 days, %d older than 90 days, %d marked unverified" % (tot, undated, o30, o90, unver))

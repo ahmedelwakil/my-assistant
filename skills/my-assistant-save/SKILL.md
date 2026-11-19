@@ -29,6 +29,8 @@ Decision entry (about 60 tokens):
 ```
 Standing rule in `global.md`: `R-007 <rule>. | triggers: ... | why: ... | src: ...`.
 
+A non-pinned decision whose rule runs past about 240 characters keeps a short rule on its first line and the rest on a `  detail:` line directly below it (pinned decisions stay on one line, because the loader reads pins from their first line). An open item is one short title line (at most 320 characters, ending with `(as of YYYY-MM-DD)`); narrative and later news go under it as indented dated lines, `  - 2026-11-19: ...`, and are never appended to the title.
+
 ## Step 1: Load configuration
 
 Follow `/my-assistant` Step 1: read the config pointer and `config.json`; if the pointer is missing, run the single first-run bootstrap described there.
@@ -60,7 +62,7 @@ Review the whole session. Scan for decision language ("we agreed", "from now on"
 
 ## Step 4: Duplicate and conflict check
 
-Grep the target domain file, its area file, `global.md` and the domain's history file (superseded entries) for each candidate's triggers. Do not re-save what exists. If it contradicts an existing entry, supersede it: new ID, the old entry moves to history marked `superseded by D-xxx`. If only part of the old entry is reversed, the new entry restates what survives (split, never leave the old one half-true). If nothing new was learned, say so and stop; write nothing.
+Grep the target domain file, its area file, `global.md` and the domain's history file (superseded entries) for each candidate's triggers. Do not re-save what exists. If it contradicts an existing entry, supersede it: new ID, the old entry moves to history marked `superseded by D-xxx`. If only part of the old entry is reversed, the new entry restates what survives (split, never leave the old one half-true). If nothing new was learned, say so and stop; write nothing. When the `search` tool is available, also search with each candidate's text to find an entry that already says it, and when a candidate merges several entries keep the union of their trigger words (an entry whose triggers cover only one of its topics is missed for the others).
 
 ## Step 5: Decide and write (no confirmation)
 
@@ -68,6 +70,7 @@ Snapshot before-counts (history line counts, headings per domain file, file size
 
 ## Step 6: Write
 
+- **Typed tools first**: when the `my-assistant-store` MCP tools (`add_decision`, `supersede_decision`, `add_item`, `update_item`, `complete_item`, `set_status`, `add_history_block`, `list_open`, `next_id`, `validate`, `search`, `get_decision`; named `mcp__my-assistant-store__<tool>`, load them with ToolSearch if they are deferred) are available, use them for every write below: they take the lock, re-read the file, allocate ids, validate the entry, back the file up and change only the targeted lines. A refusal tells you what to fix (add triggers, shorten the rule into a `detail`); do not bypass the tool. If the tools are not available, follow the manual steps below. Call `validate` for each domain touched when done.
 - **Re-read** each target file immediately before writing it: other sessions write the same files, so edit and allocate IDs from the file as it is at that moment.
 - **Lock**: if `state/.write.lock` exists and is younger than 10 minutes, wait or ask the user; create it before writing and remove it afterwards (the workflows use the same file).
 - **Status**: replaced, never appended: update BOTH the frontmatter `status:` (short, at most ~120 characters, a state not a log) and the `## 2. Status` line, and `as-of`.

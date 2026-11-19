@@ -51,7 +51,9 @@ def parse_file(path, source):
             continue
         if cur is None:
             continue
-        if line.startswith('  triggers:'):
+        if line.startswith('  detail:'):
+            cur['text'] += ' ' + line[len('  detail:'):].strip()
+        elif line.startswith('  triggers:'):
             t = line[len('  triggers:'):].split('|')[0]
             cur['triggers'] = [x.strip() for x in t.split(',') if x.strip()]
         elif line.startswith('## ') or (line and not line.startswith(' ') and not line.startswith('-')):
